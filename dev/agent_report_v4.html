@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TakingRate - Insurance Rate Intelligence</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --primary-teal: #14b8a6;
+            --primary-dark: #0f172a;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-light: #94a3b8;
+            --bg-light: #f8fafc;
+            --bg-white: #ffffff;
+            --border-color: #e2e8f0;
+            --success-green: #10b981;
+            --danger-red: #ef4444;
+            --warning-amber: #f59e0b;
+        }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-light);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-white);
+            border-bottom: 1px solid var(--border-color);
+            padding: 24px 0;
+        }
+        
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        
+        .logo span {
+            color: var(--primary-teal);
+        }
+        
+        .state-selector {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-secondary);
+        }
+        
+        .state-badge {
+            background: var(--bg-light);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        /* Hero Section */
+        .hero {
+            background: var(--bg-white);
+            padding: 60px 24px;
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .hero h1 {
+            font-size: 48px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            line-height: 1.2;
+        }
+        
+        .hero h1 em {
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        .hero-subtitle {
+            font-size: 20px;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .highlight-text {
+            background: rgba(20, 184, 166, 0.1);
+            color: var(--primary-teal);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        /* Rate Cards Section */
+        .rate-cards-section {
+            padding: 60px 24px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .section-header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+        
+        .section-header h2 {
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 24px;
+        }
+        
+        /* Toggle Switch - Enhanced */
+        .time-toggle {
+            display: inline-flex;
+            background: var(--bg-light);
+            border-radius: 12px;
+            padding: 4px;
+            position: relative;
+            margin-bottom: 40px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: calc(50% - 4px);
+            height: calc(100% - 8px);
+            background: var(--bg-white);
+            border-radius: 8px;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        
+        .time-toggle.next-active .toggle-slider {
+            transform: translateX(100%);
+        }
+        
+        .toggle-option {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: color 0.3s;
+            background: none;
+            border: none;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .toggle-option.active {
+            color: var(--text-primary);
+        }
+
+        /* Stats Banner - Now part of Rate Cards Section */
+        .stats-banner {
+            background: var(--bg-white);
+            border-radius: 12px;
+            padding: 32px;
+            margin-bottom: 48px;
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+        
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 40px;
+            text-align: center;
+        }
+        
+        .stat-item {
+            padding: 0 20px;
+            opacity: 0;
+            animation: fadeInUp 0.5s forwards;
+        }
+        
+        .stat-item:nth-child(1) { animation-delay: 0.1s; }
+        .stat-item:nth-child(2) { animation-delay: 0.2s; }
+        .stat-item:nth-child(3) { animation-delay: 0.3s; }
+        
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+        }
+        
+        .stat-number {
+            font-size: 42px;
+            font-weight: 700;
+            color: var(--primary-teal);
+            line-height: 1;
+            margin-bottom: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .stat-label {
+            font-size: 16px;
+            color: var(--text-secondary);
+        }
+
+        .rate-cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+            gap: 24px;
+        }
+
+        .rate-card {
+            background: var(--bg-white);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 32px;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        
+        .rate-card:hover {
+            border-color: var(--primary-teal);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            transform: translateY(-2px);
+        }
+        
+        .rate-direction {
+            position: absolute;
+            top: 32px;
+            right: 32px;
+            width: 40px;
+            height: 40px;
+            background: var(--bg-light);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        
+        .rate-up {
+            color: var(--danger-red);
+        }
+        
+        .rate-down {
+            color: var(--success-green);
+        }
+
+        .carrier-name {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 24px;
+        }
+        
+        .rate-change-display {
+            text-align: center;
+            padding: 24px 0;
+            margin-bottom: 24px;
+            border-top: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .rate-percentage {
+            font-size: 48px;
+            font-weight: 800;
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+        
+        .rate-percentage.increase {
+            color: var(--danger-red);
+        }
+        
+        .rate-percentage.decrease {
+            color: var(--success-green);
+        }
+        
+        .rate-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .card-detail {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        
+        .detail-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        
+        .detail-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        
+        .effective-date {
+            padding-top: 24px;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        
+        .effective-date strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+        
+        /* Hide/show cards based on toggle */
+        .rate-cards-container {
+            position: relative;
+        }
+        
+        .cards-set {
+            display: none;
+        }
+        
+        .cards-set.active {
+            display: grid;
+        }
+
+        /* Upcoming Changes Timeline */
+        .timeline-section {
+            background: var(--bg-white);
+            padding: 60px 24px;
+            border-top: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .timeline-container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .timeline-header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+        
+        .timeline-header h2 {
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+        }
+        
+        .timeline-header p {
+            font-size: 18px;
+            color: var(--text-secondary);
+        }
+        
+        .timeline-items {
+            background: var(--bg-light);
+            border-radius: 12px;
+            padding: 32px;
+        }
+        
+        .timeline-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .timeline-item:last-child {
+            border-bottom: none;
+        }
+        
+        .timeline-date {
+            font-weight: 600;
+            color: var(--text-primary);
+            min-width: 100px;
+        }
+        
+        .timeline-carrier {
+            flex: 1;
+            padding: 0 24px;
+            font-size: 18px;
+            color: var(--text-primary);
+        }
+        
+        .timeline-carrier span {
+            color: var(--danger-red);
+            font-weight: 600;
+        }
+        
+        .timeline-actions {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .action-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            background: var(--bg-white);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 14px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        
+        .action-button:hover {
+            background: var(--bg-light);
+            color: var(--text-primary);
+            border-color: var(--primary-teal);
+        }
+
+        /* Bottom Stats Bar */
+        .stats-bar {
+            background: var(--primary-dark);
+            color: white;
+            padding: 40px 24px;
+        }
+        
+        .stats-bar-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 40px;
+            text-align: center;
+        }
+        
+        .stats-bar .stat-number {
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--primary-teal);
+            margin-bottom: 8px;
+        }
+        
+        .stats-bar .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+            color: white;
+        }
+
+        /* CTA Section */
+        .cta-section {
+            background: var(--bg-white);
+            padding: 80px 24px;
+            text-align: center;
+        }
+        
+        .cta-content {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        
+        .cta-content h2 {
+            font-size: 40px;
+            color: var(--text-primary);
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+        
+        .cta-content h2 em {
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        .cta-content p {
+            font-size: 18px;
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+            line-height: 1.6;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            background: var(--primary-teal);
+            color: white;
+            padding: 16px 32px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 18px;
+            transition: all 0.2s;
+        }
+        
+        .cta-button:hover {
+            background: #0d9488;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(20, 184, 166, 0.3);
+        }
+        
+        .subtext {
+            margin-top: 16px;
+            font-size: 14px;
+            color: var(--text-light);
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 36px; }
+            .rate-cards-grid, .cards-set.active { grid-template-columns: 1fr; }
+            .timeline-item { 
+                flex-direction: column; 
+                align-items: flex-start;
+                gap: 12px;
+            }
+            .timeline-carrier { padding: 0; }
+            .timeline-actions { margin-top: 12px; }
+            .stats-container { grid-template-columns: 1fr; }
+            .stats-bar-container { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">Taking<span>Rate</span></div>
+            <div class="state-selector">
+                <span>Currently viewing:</span>
+                <div class="state-badge">Illinois</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <h1>Be <em>first</em> to know when competitors raise rates</h1>
+        <p class="hero-subtitle">
+            TakingRate emails you when a competitor files for an auto rate increase — 
+            <span class="highlight-text">months before it happens</span>. 
+            So you can win their customers.
+        </p>
+    </section>
+
+    <!-- Top Rate Movers -->
+    <section class="rate-cards-section">
+        <div class="section-header">
+            <h2>Top Rate Movers</h2>
+            <div class="time-toggle" id="timeToggle">
+                <div class="toggle-slider"></div>
+                <button class="toggle-option active" onclick="toggleTimeframe('past')">Past 90 Days</button>
+                <button class="toggle-option" onclick="toggleTimeframe('next')">Next 90 Days</button>
+            </div>
+        </div>
+
+        <!-- Dynamic Stats Banner -->
+        <div class="stats-banner">
+            <div class="stats-container" id="statsContainer">
+                <div class="stat-item">
+                    <div class="stat-number" id="companiesCount">23</div>
+                    <div class="stat-label">Companies Taking Rate</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="avgIncrease">8.3%</div>
+                    <div class="stat-label">Average Rate Increase</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="policyholdersCount">1.2M</div>
+                    <div class="stat-label">Policyholders Affected</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="rate-cards-container">
+            <!-- Past 90 Days Cards -->
+            <div class="rate-cards-grid cards-set active" id="past-cards">
+                <!-- Farmers - Past -->
+                <div class="rate-card">
+                    <div class="rate-direction rate-up">↑</div>
+                    <h3 class="carrier-name">Farmers Insurance</h3>
+                    
+                    <div class="rate-change-display">
+                        <div class="rate-percentage increase">+14.2%</div>
+                        <div class="rate-label">Rate Increase</div>
+                    </div>
+                    
+                    <div class="card-detail">
+                        <div class="detail-number">287K</div>
+                        <div class="detail-label">Policies Affected</div>
+                    </div>
+                    
+                    <div class="effective-date">
+                        Effective <strong>December 15, 2024</strong>
+                    </div>
+                </div>
+
+                <!-- State Farm - Past -->
+                <div class="rate-card">
+                    <div class="rate-direction rate-up">↑</div>
+                    <h3 class="carrier-name">State Farm</h3>
+                    
+                    <div class="rate-change-display">
+                        <div class="rate-percentage increase">+11.8%</div>
+                        <div class="rate-label">Rate Increase</div>
+                    </div>
+                    
+                    <div class="card-detail">
+                        <div class="detail-number">412K</div>
+                        <div class="detail-label">Policies Affected</div>
+                    </div>
+                    
+                    <div class="effective-date">
+                        Effective <strong>January 1, 2025</strong>
+                    </div>
+                </div>
+
+                <!-- American Family - Past -->
+                <div class="rate-card">
+                    <div class="rate-direction rate-down">↓</div>
+                    <h3 class="carrier-name">American Family</h3>
+                    
+                    <div class="rate-change-display">
+                        <div class="rate-percentage decrease">-4.5%</div>
+                        <div class="rate-label">Rate Decrease</div>
+                    </div>
+                    
+                    <div class="card-detail">
+                        <div class="detail-number">198K</div>
+                        <div class="detail-label">Policies Affected</div>
+                    </div>
+                    
+                    <div class="effective-date">
+                        Effective <strong>January 20, 2025</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Next 90 Days Cards -->
+            <div class="rate-cards-grid cards-set" id="next-cards">
+                <!-- Progressive - Next -->
+                <div class="rate-card">
+                    <div class="rate-direction rate-up">↑</div>
+                    <h3 class="carrier-name">Progressive</h3>
+                    
+                    <div class="rate-change-display">
+                        <div class="rate-percentage increase">+12.5%</div>
+                        <div class="rate-label">Rate Increase</div>
+                    </div>
+                    
+                    <div class="card-detail">
+                        <div class="detail-number">234K</div>
+                        <div class="detail-label">Policies Affected</div>
+                    </div>
+                    
+                    <div class="effective-date">
+                        Effective <strong>March 15, 2025</strong>
+                    </div>
+                </div>
+
+                <!-- GEICO - Next -->
+                <div class="rate-card">
+                    <div class="rate-direction rate-up">↑</div>
+                    <h3 class="carrier-name">GEICO</h3>
+                    
+                    <div class="rate-change-display">
+                        <div class="rate-percentage increase">+9.8%</div>
+                        <div class="rate-label">Rate Increase</div>
+                    </div>
+                    
+                    <div class="card-detail">
+                        <div class="detail-number">189K</div>
+                        <div class="detail-label">Policies Affected</div>
+                    </div>
+                    
+                    <div class="effective-date">
+                        Effective <strong>March 1, 2025</strong>
+                    </div>
+                </div>
+
+                <!-- Allstate - Next -->
+                <div class="rate-card">
+                    <div class="rate-direction rate-down">↓</div>
+                    <h3 class="carrier-name">Allstate</h3>
+                    
+                    <div class="rate-change-display">
+                        <div class="rate-percentage decrease">-3.2%</div>
+                        <div class="rate-label">Rate Decrease</div>
+                    </div>
+                    
+                    <div class="card-detail">
+                        <div class="detail-number">156K</div>
+                        <div class="detail-label">Policies Affected</div>
+                    </div>
+                    
+                    <div class="effective-date">
+                        Effective <strong>April 1, 2025</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Upcoming Changes Timeline -->
+    <section class="timeline-section">
+        <div class="timeline-container">
+            <div class="timeline-header">
+                <h2>Upcoming Rate Changes</h2>
+                <p>Mark your calendar for optimal outreach timing</p>
+            </div>
+            
+            <div class="timeline-items">
+                <div class="timeline-item">
+                    <div class="timeline-date">Mar 1</div>
+                    <div class="timeline-carrier">GEICO <span>+9.8%</span></div>
+                    <div class="timeline-actions">
+                        <a href="#" class="action-button">📅 Add to Calendar</a>
+                        <a href="#" class="action-button">📧 Email Template</a>
+                    </div>
+                </div>
+                
+                <div class="timeline-item">
+                    <div class="timeline-date">Mar 15</div>
+                    <div class="timeline-carrier">Progressive <span>+12.5%</span></div>
+                    <div class="timeline-actions">
+                        <a href="#" class="action-button">📅 Add to Calendar</a>
+                        <a href="#" class="action-button">📧 Email Template</a>
+                    </div>
+                </div>
+                
+                <div class="timeline-item">
+                    <div class="timeline-date">Mar 20</div>
+                    <div class="timeline-carrier">Farmers Insurance <span>+6.5%</span></div>
+                    <div class="timeline-actions">
+                        <a href="#" class="action-button">📅 Add to Calendar</a>
+                        <a href="#" class="action-button">📧 Email Template</a>
+                    </div>
+                </div>
+                
+                <div class="timeline-item">
+                    <div class="timeline-date">Apr 1</div>
+                    <div class="timeline-carrier">Liberty Mutual <span>+7.2%</span></div>
+                    <div class="timeline-actions">
+                        <a href="#" class="action-button">📅 Add to Calendar</a>
+                        <a href="#" class="action-button">📧 Email Template</a>
+                    </div>
+                </div>
+                
+                <div class="timeline-item">
+                    <div class="timeline-date">Apr 1</div>
+                    <div class="timeline-carrier">Allstate <span style="color: #10b981;">-3.2%</span></div>
+                    <div class="timeline-actions">
+                        <a href="#" class="action-button">📅 Add to Calendar</a>
+                        <a href="#" class="action-button">📧 Email Template</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Market Intelligence Stats -->
+    <section class="stats-bar">
+        <div class="stats-bar-container">
+            <div class="stat-item">
+                <div class="stat-number">5,600+</div>
+                <div class="stat-label">Rate Filings Tracked</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">2.4M</div>
+                <div class="stat-label">Affected Policyholders</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">18</div>
+                <div class="stat-label">States with Active Filings</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="cta-content">
+            <h2>Be <em>first</em> to know when competitors raise rates</h2>
+            <p>
+                TakingRate emails you when a competitor files for an auto rate increase — 
+                months before it happens. So you can win their customers.
+            </p>
+            <a href="#" class="cta-button">Sign up for alerts (it's free)</a>
+            <p class="subtext">(So you can win their customers.)</p>
+        </div>
+    </section>
+
+    <script>
+        function toggleTimeframe(timeframe) {
+            // Update toggle state
+            const toggle = document.getElementById('timeToggle');
+            const buttons = document.querySelectorAll('.toggle-option');
+            
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Update slider position
+            if (timeframe === 'next') {
+                toggle.classList.add('next-active');
+            } else {
+                toggle.classList.remove('next-active');
+            }
+            
+            // Update card visibility
+            const pastCards = document.getElementById('past-cards');
+            const nextCards = document.getElementById('next-cards');
+            
+            if (timeframe === 'past') {
+                pastCards.classList.add('active');
+                nextCards.classList.remove('active');
+                updateStats('past');
+            } else {
+                pastCards.classList.remove('active');
+                nextCards.classList.add('active');
+                updateStats('next');
+            }
+        }
+
+        function updateStats(timeframe) {
+            const companiesCount = document.getElementById('companiesCount');
+            const avgIncrease = document.getElementById('avgIncrease');
+            const policyholdersCount = document.getElementById('policyholdersCount');
+            
+            // Re-trigger animations
+            const statItems = document.querySelectorAll('.stat-item');
+            statItems.forEach(item => {
+                item.style.animation = 'none';
+                setTimeout(() => {
+                    item.style.animation = '';
+                }, 10);
+            });
+            
+            if (timeframe === 'past') {
+                // Past 90 days stats
+                companiesCount.textContent = '23';
+                avgIncrease.textContent = '8.3%';
+                policyholdersCount.textContent = '1.2M';
+            } else {
+                // Next 90 days stats
+                companiesCount.textContent = '19';
+                avgIncrease.textContent = '10.5%';
+                policyholdersCount.textContent = '579K';
+            }
+        }
+    </script>
+</body>
+</html>
