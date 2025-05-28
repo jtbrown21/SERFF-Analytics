@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ agent_carrier }} Action Report - {{ state }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #ffffff;
+            color: #111827;
+            line-height: 1.5;
+        }
+        
+        /* Hero Section */
+        .hero {
+            background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+        }
+        .hero h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        .hero-subtitle {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+        
+        /* Revenue Impact Banner */
+        .revenue-banner {
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            margin: 20px;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .revenue-amount {
+            font-size: 48px;
+            font-weight: 800;
+            color: #d97706;
+            line-height: 1;
+        }
+        .revenue-subtitle {
+            font-size: 18px;
+            color: #92400e;
+            margin-top: 10px;
+        }
+        
+        /* Action Cards */
+        .action-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .action-card {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 25px;
+            position: relative;
+            transition: all 0.3s;
+        }
+        .action-card:hover {
+            border-color: #3b82f6;
+            transform: translateY(-4px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        
+        .urgency-badge {
+            position: absolute;
+            top: -12px;
+            right: 20px;
+            background: #ef4444;
+            color: white;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .competitor-logo {
+            width: 60px;
+            height: 60px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 700;
+            color: #6b7280;
+            margin-bottom: 15px;
+        }
+        
+        .rate-comparison {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 8px;
+        }
+        
+        .rate-them {
+            color: #dc2626;
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .rate-you {
+            color: #059669;
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .rate-vs {
+            font-size: 18px;
+            color: #6b7280;
+        }
+        
+        /* Customer Segments */
+        .segment-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 15px 0;
+        }
+        .segment-pill {
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        
+        /* Win Probability Meter */
+        .win-meter {
+            margin: 20px 0;
+        }
+        .win-meter-bar {
+            height: 12px;
+            background: #e5e7eb;
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
+        }
+        .win-meter-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+            transition: width 0.5s;
+        }
+        .win-meter-label {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            font-size: 14px;
+        }
+        
+        /* Action Timeline */
+        .timeline-section {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        .timeline-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .timeline-header h2 {
+            font-size: 28px;
+            color: #111827;
+            margin-bottom: 10px;
+        }
+        
+        .timeline {
+            position: relative;
+            padding-left: 40px;
+        }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #e5e7eb;
+        }
+        
+        .timeline-item {
+            position: relative;
+            margin-bottom: 30px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -26px;
+            top: 25px;
+            width: 12px;
+            height: 12px;
+            background: #3b82f6;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 0 0 2px #e5e7eb;
+        }
+        
+        .timeline-item.urgent::before {
+            background: #ef4444;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 2px #e5e7eb; }
+            50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.2); }
+            100% { box-shadow: 0 0 0 2px #e5e7eb; }
+        }
+        
+        /* Quick Stats */
+        .stats-bar {
+            display: flex;
+            justify-content: space-around;
+            background: #1e293b;
+            color: white;
+            padding: 20px;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .stat-item {
+            text-align: center;
+            flex: 1;
+            min-width: 150px;
+        }
+        .stat-number {
+            font-size: 32px;
+            font-weight: 700;
+            color: #fbbf24;
+        }
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+        
+        /* Call to Action */
+        .cta-section {
+            background: #f0fdf4;
+            border: 2px solid #10b981;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 40px 20px;
+            text-align: center;
+        }
+        .cta-section h3 {
+            color: #059669;
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+        .cta-button {
+            display: inline-block;
+            background: #10b981;
+            color: white;
+            padding: 12px 30px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 15px;
+            transition: background 0.3s;
+        }
+        .cta-button:hover {
+            background: #059669;
+        }
+        
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 24px; }
+            .revenue-amount { font-size: 36px; }
+            .action-grid { grid-template-columns: 1fr; }
+            .rate-them, .rate-you { font-size: 24px; }
+        }
+        
+        /* Print Styles */
+        @media print {
+            body { background: white; }
+            .hero { background: none; color: black; border-bottom: 2px solid black; }
+            .action-card { page-break-inside: avoid; }
+            .cta-section { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Hero Section -->
+    <div class="hero">
+        <h1>{{ total_opportunities }} Win-Back Opportunities Found!</h1>
+        <div class="hero-subtitle">{{ agent_carrier }} Agent • {{ state }} • Updated {{ report_time }}</div>
+    </div>
+    
+    <!-- Revenue Impact Banner -->
+    <div class="revenue-banner">
+        <div class="revenue-amount">${{ potential_revenue }}</div>
+        <div class="revenue-subtitle">Potential Commission Revenue Available</div>
+        <div style="margin-top: 10px; font-size: 14px; color: #78350f;">
+            Based on {{ total_policies }} affected policies at ${{ avg_premium }} average premium
+        </div>
+    </div>
+    
+    <!-- Quick Stats Bar -->
+    <div class="stats-bar">
+        <div class="stat-item">
+            <div class="stat-number">{{ your_advantage }}%</div>
+            <div class="stat-label">Average Price Advantage</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">{{ urgent_count }}</div>
+            <div class="stat-label">Act Within 30 Days</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">#{{ market_position }}</div>
+            <div class="stat-label">Your Market Position</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">{{ win_rate }}%</div>
+            <div class="stat-label">Expected Win Rate</div>
+        </div>
+    </div>
+    
+    <!-- Action Cards -->
+    <div style="padding: 20px; max-width: 1200px; margin: 0 auto;">
+        <h2 style="font-size: 28px; margin-bottom: 20px; text-align: center;">
+            🎯 Your Top Win-Back Targets
+        </h2>
+    </div>
+    
+    <div class="action-grid">
+        {% for opp in top_opportunities %}
+        <div class="action-card">
+            {% if opp.days_until <= 30 %}
+            <div class="urgency-badge">Act Now</div>
+            {% endif %}
+            
+            <div class="competitor-logo">{{ opp.logo }}</div>
+            <h3 style="font-size: 22px; margin-bottom: 10px;">{{ opp.competitor }}</h3>
+            
+            <div class="rate-comparison">
+                <div>
+                    <div class="rate-them">+{{ opp.their_rate }}%</div>
+                    <div style="font-size: 12px; color: #6b7280;">Their increase</div>
+                </div>
+                <div class="rate-vs">VS</div>
+                <div>
+                    <div class="rate-you">{{ your_rate_display }}</div>
+                    <div style="font-size: 12px; color: #6b7280;">Your rate</div>
+                </div>
+            </div>
+            
+            <div class="win-meter">
+                <div style="font-weight: 600; margin-bottom: 5px;">Win Probability</div>
+                <div class="win-meter-bar">
+                    <div class="win-meter-fill" style="width: {{ opp.win_probability }}%"></div>
+                </div>
+                <div class="win-meter-label">
+                    <span>Low</span>
+                    <span style="font-weight: 700; color: #059669;">{{ opp.win_probability }}%</span>
+                    <span>High</span>
+                </div>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <strong>Best Targets:</strong>
+                <div class="segment-pills">
+                    {% for segment in opp.segments %}
+                    <div class="segment-pill">{{ segment }}</div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                    <span style="color: #6b7280;">Effective Date:</span>
+                    <strong>{{ opp.effective_date }}</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                    <span style="color: #6b7280;">Est. Policies:</span>
+                    <strong>{{ opp.policies_affected }}</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #6b7280;">Commission Opp:</span>
+                    <strong style="color: #059669;">${{ opp.commission_opportunity }}</strong>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Action Timeline -->
+    <div class="timeline-section">
+        <div class="timeline-header">
+            <h2>📅 Your Action Calendar</h2>
+            <p style="color: #6b7280;">When to reach out for maximum impact</p>
+        </div>
+        
+        <div class="timeline">
+            {% for event in timeline %}
+            <div class="timeline-item {% if event.days_until <= 30 %}urgent{% endif %}">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <h4 style="font-size: 18px; margin-bottom: 5px;">{{ event.carrier }}</h4>
+                        <div style="color: #6b7280; font-size: 14px;">
+                            Rate increase effective {{ event.date }}
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 24px; font-weight: 700; color: #3b82f6;">
+                            {{ event.days_until }}
+                        </div>
+                        <div style="font-size: 12px; color: #6b7280;">days</div>
+                    </div>
+                </div>
+                <div style="margin-top: 15px; padding: 10px; background: #f3f4f6; border-radius: 6px;">
+                    <strong>Action Window:</strong> {{ event.action_window }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Call to Action -->
+    <div class="cta-section">
+        <h3>Ready to Win Back Customers?</h3>
+        <p>Download your call list and talking points to start converting these opportunities today.</p>
+        <a href="#" class="cta-button">Download Action Kit</a>
+    </div>
+    
+    <!-- Footer -->
+    <div style="text-align: center; padding: 20px; color: #6b7280; font-size: 12px;">
+        Generated {{ timestamp }} • Data current as of {{ data_date }} • Next update: {{ next_update }}
+    </div>
+</body>
+</html>

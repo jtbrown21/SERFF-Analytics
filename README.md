@@ -23,3 +23,14 @@ This system syncs insurance rate filing data from Airtable and generates actiona
 ```bash
 git clone https://github.com/USERNAME/insurance-analytics.git
 cd insurance-analytics
+```
+
+## CSS Development Workflow
+
+A development environment is provided in the `dev/` folder for quickly iterating on the report styling.
+
+1. Open `dev/sample_report.html` in your browser. It links to `dev/style.css` so changes are visible on refresh.
+2. Edit `dev/style.css` to adjust styles.
+3. Once satisfied, run `./embed_css_in_template.py` to embed the CSS back into `src/agent_report_v2.py`.
+
+The script replaces the contents of the `<style>` block in the template so the production version remains a single file.
