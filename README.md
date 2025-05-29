@@ -29,6 +29,16 @@ cd insurance-analytics
 ```bash
 source venv/bin/activate
 ```
+If `venv/` is missing or you prefer your own environment, run the setup script:
+```bash
+./scripts/setup_dev_env.sh
+```
+This creates a virtual environment and installs packages from `requirements.txt`.
+
+3. Verify dependencies can be imported:
+```bash
+python scripts/verify_deps.py
+```
 
 ### Creating or Syncing the Database
 
