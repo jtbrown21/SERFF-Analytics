@@ -54,3 +54,8 @@ Key fields in 'filings' table:
 - Effective_Date: When rate change takes effect
 - Policyholders_Affected_Number: Estimated impact
 - Product_Line: Type of insurance
+
+## New Reporting Capabilities
+- `src/reports/state_newsletter.py` generates monthly HTML newsletters for a specific state using `templates/state_newsletter.html`.
+- Run with `python -m src.reports.state_newsletter <State>` to produce a report file in the `reports/` directory.
+- Data is pulled from DuckDB via `DatabaseManager`. Ensure the database is synced before generating reports.
