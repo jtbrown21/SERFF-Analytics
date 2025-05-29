@@ -18,6 +18,7 @@ ENV/
 .env
 data/
 reports/
+!src/reports/
 *.db
 *.log
 

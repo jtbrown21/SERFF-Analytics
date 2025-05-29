@@ -70,3 +70,21 @@ python -m src.data_health_checker
 
 The health check outputs missing states and duplicate record information so you
 can verify the integrity of your filings data.
+
+## State-Specific Newsletter Reports
+
+This project now includes a monthly HTML newsletter template for any U.S. state. Reports pull data directly from the DuckDB database and render using Jinja2.
+
+### Generating a Report
+
+```bash
+python -m src.reports.state_newsletter Illinois > reports/illinois.html
+```
+
+### Data Flow
+
+```
+Database (DuckDB) --> state_newsletter.py --> templates/state_newsletter.html --> HTML output
+```
+
+Reports are generated for a single state at a time. The initial test case uses **Illinois** but all 50 states are supported if data is present.
