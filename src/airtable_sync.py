@@ -3,8 +3,8 @@ from pyairtable import Table
 import duckdb
 from datetime import datetime
 import logging
-from config import Config
-from database import DatabaseManager
+from src.config import Config
+from src.database import DatabaseManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
