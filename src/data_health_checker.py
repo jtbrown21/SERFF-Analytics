@@ -100,41 +100,22 @@ class SimpleDataHealthCheck:
         """Find records where all fields match exactly."""
         conn = duckdb.connect(self.db_path)
         year_filter = f"WHERE YEAR(Effective_Date) = {year}" if year else ""
+
+        # Dynamically build list of all columns except the primary key
+        table_info = conn.execute("PRAGMA table_info(filings)").fetchall()
+        all_columns = [row[1] for row in table_info]
+        group_columns = [c for c in all_columns if c != "Record_ID"]
+        cols = ", ".join(group_columns)
+
         query = f"""
         WITH duplicate_groups AS (
-            SELECT 
-                Company,
-                Subsidiary,
-                State,
-                Product_Line,
-                Rate_Change_Type,
-                Premium_Change_Number,
-                Premium_Change_Amount_Text,
-                Effective_Date,
-                Previous_Increase_Date,
-                Previous_Increase_Percentage,
-                Policyholders_Affected_Number,
-                Policyholders_Affected_Text,
-                Total_Written_Premium_Number,
-                Total_Written_Premium_Text,
-                SERFF_Tracking_Number,
-                Specific_Coverages,
-                Stated_Reasons,
-                Population,
-                Impact_Score,
-                Renewals_Date,
+            SELECT
+                {cols},
                 COUNT(*) as duplicate_count,
                 STRING_AGG(Record_ID, ', ') as record_ids
             FROM filings
             {year_filter}
-            GROUP BY 
-                Company, Subsidiary, State, Product_Line, Rate_Change_Type,
-                Premium_Change_Number, Premium_Change_Amount_Text, Effective_Date,
-                Previous_Increase_Date, Previous_Increase_Percentage,
-                Policyholders_Affected_Number, Policyholders_Affected_Text,
-                Total_Written_Premium_Number, Total_Written_Premium_Text,
-                SERFF_Tracking_Number, Specific_Coverages, Stated_Reasons,
-                Population, Impact_Score, Renewals_Date
+            GROUP BY {cols}
             HAVING COUNT(*) > 1
         )
         SELECT * FROM duplicate_groups
