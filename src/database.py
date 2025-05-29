@@ -2,23 +2,28 @@ import duckdb
 import pandas as pd
 from datetime import datetime
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
+
 class DatabaseManager:
-    def __init__(self, db_path='data/insurance_filings.db'):
+    def __init__(self, db_path="data/insurance_filings.db"):
         self.db_path = db_path
+        # Ensure the directory for the database exists
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self.init_database()
-    
+
     def get_connection(self):
         return duckdb.connect(self.db_path)
-    
+
     def init_database(self):
         """Initialize database with proper schema"""
         conn = self.get_connection()
-        
+
         # Create main table matching your Airtable fields
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS filings (
                 Record_ID VARCHAR PRIMARY KEY,
                 Company VARCHAR,
@@ -44,16 +49,17 @@ class DatabaseManager:
                 Created_At TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 Updated_At TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """)
-        
+        """
+        )
+
         # Create indexes for performance
         conn.execute("CREATE INDEX IF NOT EXISTS idx_state_product ON filings(State, Product_Line)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_company ON filings(Company, Subsidiary)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_effective_date ON filings(Effective_Date)")
-        
+
         conn.close()
         logger.info("Database initialized successfully")
-    
+
     def get_schema_context(self):
         """Return schema information for LLM context"""
         return """
