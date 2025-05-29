@@ -2,73 +2,18 @@ import duckdb
 import pandas as pd
 from datetime import datetime
 
+
 class SimpleDataHealthCheck:
     """Simple health check for insurance filings data.
     Note: Florida is excluded from all checks (no FL data available).
     """
-    def __init__(self, db_path='data/insurance_filings.db'):
+
+    def __init__(self, db_path="data/insurance_filings.db"):
         self.db_path = db_path
-        # All US states that should have insurance filings
+        # All US state abbreviations that should have insurance filings
         # NOTE: Florida (FL) excluded - no FL data currently available
         self.ALL_STATES = [
-            'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'GA', 'HI', 'ID',
-            'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS',
-            'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK',
-            'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV',
-            'WI', 'WY', 'DC'
-        ]
 
-        self.NAME_TO_ABBR = {
-            'Alabama': 'AL',
-            'Alaska': 'AK',
-            'Arizona': 'AZ',
-            'Arkansas': 'AR',
-            'California': 'CA',
-            'Colorado': 'CO',
-            'Connecticut': 'CT',
-            'Delaware': 'DE',
-            'Georgia': 'GA',
-            'Hawaii': 'HI',
-            'Idaho': 'ID',
-            'Illinois': 'IL',
-            'Indiana': 'IN',
-            'Iowa': 'IA',
-            'Kansas': 'KS',
-            'Kentucky': 'KY',
-            'Louisiana': 'LA',
-            'Maine': 'ME',
-            'Maryland': 'MD',
-            'Massachusetts': 'MA',
-            'Michigan': 'MI',
-            'Minnesota': 'MN',
-            'Mississippi': 'MS',
-            'Missouri': 'MO',
-            'Montana': 'MT',
-            'Nebraska': 'NE',
-            'Nevada': 'NV',
-            'New Hampshire': 'NH',
-            'New Jersey': 'NJ',
-            'New Mexico': 'NM',
-            'New York': 'NY',
-            'North Carolina': 'NC',
-            'North Dakota': 'ND',
-            'Ohio': 'OH',
-            'Oklahoma': 'OK',
-            'Oregon': 'OR',
-            'Pennsylvania': 'PA',
-            'Rhode Island': 'RI',
-            'South Carolina': 'SC',
-            'South Dakota': 'SD',
-            'Tennessee': 'TN',
-            'Texas': 'TX',
-            'Utah': 'UT',
-            'Vermont': 'VT',
-            'Virginia': 'VA',
-            'Washington': 'WA',
-            'West Virginia': 'WV',
-            'Wisconsin': 'WI',
-            'Wyoming': 'WY',
-            'District of Columbia': 'DC'
         }
 
     def check_missing_states_by_year(self, year: int):
@@ -84,8 +29,7 @@ class SimpleDataHealthCheck:
         states_with_data = conn.execute(query).fetchdf()
         conn.close()
         states_in_db = {
-            self.NAME_TO_ABBR.get(state, state)
-            for state in states_with_data['State'].tolist()
+
         }
         missing_states = sorted(set(self.ALL_STATES) - states_in_db)
         return missing_states
@@ -155,16 +99,16 @@ class SimpleDataHealthCheck:
         ORDER BY year DESC
         """
         overview = conn.execute(query).fetchdf()
-        print("\U0001F4CA DATA OVERVIEW BY YEAR")
+
         print("=" * 50)
         print(f"{'Year':<6} {'Filings':<12} {'States':<15}")
         print("-" * 50)
         for _, row in overview.iterrows():
-            year = int(row['year'])
+            year = int(row["year"])
             filings = f"{row['total_filings']:,}"
             states = f"{row['states_with_data']}/{len(self.ALL_STATES)}"
             print(f"{year:<6} {filings:<12} {states:<15}")
-            missing_count = len(self.ALL_STATES) - row['states_with_data']
+            missing_count = len(self.ALL_STATES) - row["states_with_data"]
             if 0 < missing_count < 10:
                 missing_states = self.check_missing_states_by_year(year)
                 print(f"       Missing: {', '.join(missing_states)}")
@@ -181,36 +125,38 @@ class SimpleDataHealthCheck:
         bad_years = conn.execute(bad_years_query).fetchdf()
         conn.close()
         if len(bad_years) > 0:
-            print("\n\u26A0\uFE0F  Warning: Found filings with incorrect years:")
+            print("\n\u26a0\ufe0f  Warning: Found filings with incorrect years:")
             for _, row in bad_years.iterrows():
                 print(f"   - Year {int(row['year'])}: {row['count']} filings")
         return overview
 
     def run_health_check(self, year: int | None = None) -> None:
         """Run the health checks and print results."""
-        print("\n\U0001F3E5 INSURANCE DATA HEALTH CHECK")
+        print("\n\U0001f3e5 INSURANCE DATA HEALTH CHECK")
         print(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         if year:
             print(f"Year: {year}")
         print("=" * 50)
-        print("\n\U0001F4CB DUPLICATE CHECK")
+        print("\n\U0001f4cb DUPLICATE CHECK")
         duplicates = self.check_perfect_duplicates(year)
         if len(duplicates) > 0:
-            total_duplicate_records = duplicates['duplicate_count'].sum() - len(duplicates)
-            print(f"\u274C Found {len(duplicates)} groups of perfect duplicates")
+            total_duplicate_records = duplicates["duplicate_count"].sum() - len(duplicates)
+            print(f"\u274c Found {len(duplicates)} groups of perfect duplicates")
             print(f"   Total duplicate records: {total_duplicate_records}")
             print("\n   Top duplicate examples:")
             for _, row in duplicates.head(5).iterrows():
-                print(f"   \u2022 {row['Company']} - {row['State']} - {row['Effective_Date']} ({row['duplicate_count']} copies)")
+                print(
+                    f"   \u2022 {row['Company']} - {row['State']} - {row['Effective_Date']} ({row['duplicate_count']} copies)"
+                )
         else:
             period = f" in {year}" if year else ""
             print(f"\u2705 No perfect duplicates found{period}")
         missing = []
         if year:
-            print(f"\n\U0001F5FA\uFE0F  STATE COVERAGE FOR {year}")
+            print(f"\n\U0001f5fa\ufe0f  STATE COVERAGE FOR {year}")
             missing = self.check_missing_states_by_year(year)
             if missing:
-                print(f"\u274C {len(missing)} states missing: {', '.join(missing)}")
+                print(f"\u274c {len(missing)} states missing: {', '.join(missing)}")
             else:
                 print("\u2705 All expected states have data")
         print("\n" + "=" * 50)
@@ -219,14 +165,15 @@ class SimpleDataHealthCheck:
         else:
             print("OVERALL SUMMARY:")
         if len(duplicates) > 0:
-            print("• \u274C Duplicates need cleanup")
+            print("• \u274c Duplicates need cleanup")
         else:
             print("• \u2705 No duplicates")
         if year and missing:
-            print(f"• \u274C Missing data for {len(missing)} states")
+            print(f"• \u274c Missing data for {len(missing)} states")
         elif year:
             print("• \u2705 All states covered")
 
+
 if __name__ == "__main__":
-    checker = SimpleDataHealthCheck('data/insurance_filings.db')
+    checker = SimpleDataHealthCheck("data/insurance_filings.db")
     checker.get_year_overview()
