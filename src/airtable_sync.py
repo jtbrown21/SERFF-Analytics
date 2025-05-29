@@ -34,8 +34,8 @@ class AirtableSync:
                 # Map YOUR ACTUAL Airtable fields to database columns
                 row = {
                     'Record_ID': record['id'],
-                    'Company': fields.get('Filing Company', ''),
-                    'Subsidiary': fields.get('Parent Company', ''),
+                    'Company': fields.get('Parent Company', ''),
+                    'Subsidiary': fields.get('Filing Company', ''),
                     'State': fields.get('Impacted State', ''),
                     'Product_Line': fields.get('Product Line', ''),
                     'Rate_Change_Type': fields.get('Rate Change Type', ''),
@@ -46,7 +46,7 @@ class AirtableSync:
                         'Overall Rate Change', ''
                     ),
                     'Effective_Date': self._parse_date(
-                        fields.get('Effective date') or
+                        fields.get('Effective Date') or
                         fields.get('Effective Date (New)') or
                         fields.get('Effective Date Requested (New)')
                     ),
@@ -76,6 +76,14 @@ class AirtableSync:
                         'SERFF Tracking Number', ''
                     ),
                     'Specific_Coverages': fields.get('Specific Coverages', ''),
+                    'Filing_Method': fields.get('Filing Method', ''),
+                    'Current_Status': fields.get('Current Status', ''),
+                    'Date_Submitted': self._parse_date(
+                        fields.get('Date Submitted')
+                    ),
+                    'Disposition_Date': self._parse_date(
+                        fields.get('Disposition Date')
+                    ),
                     'Stated_Reasons': fields.get('Name', ''),
                     'Population': fields.get('Population', ''),
                     'Renewals_Date': self._parse_date(
