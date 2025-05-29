@@ -88,7 +88,7 @@ This project now includes a monthly HTML newsletter template for any U.S. state.
 ### Generating a Report
 
 ```bash
-python -m src.reports.state_newsletter Illinois > reports/illinois.html
+python -m src.reports.state_newsletter Illinois --month 2024-03 > reports/illinois_march_2024.html
 ```
 
 ### Data Flow
@@ -97,4 +97,4 @@ python -m src.reports.state_newsletter Illinois > reports/illinois.html
 Database (DuckDB) --> state_newsletter.py --> templates/state_newsletter.html --> HTML output
 ```
 
-Reports are generated for a single state at a time. The initial test case uses **Illinois** but all 50 states are supported if data is present.
+Reports are generated for a single state at a time. Use the optional `--month` flag to target a specific month (`YYYY-MM`). The output file name now includes the state and month for clarity.
