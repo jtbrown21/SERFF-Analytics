@@ -3,6 +3,44 @@ import pandas as pd
 from datetime import datetime
 
 
+def check_state_filing_completeness(data, start_year=2020, end_year=2024):
+    """Return missing state/year combinations.
+
+    Parameters
+    ----------
+    data : DataFrame | list[dict]
+        Filing data with ``state_code`` and ``year`` fields. ``filing_status``
+        is optional and not used directly.
+    start_year : int, default 2020
+        Beginning of the year range to validate.
+    end_year : int, default 2024
+        End of the year range (inclusive).
+
+    This function previously only looked for ``NaN`` values when determining
+    missing filings which meant a state with **no rows at all** for a given
+    year (e.g. WA in 2024) was incorrectly treated as complete.  The new
+    implementation cross joins all expected states with the specified year range
+    so completely absent records are flagged.
+    """
+
+    df = pd.DataFrame(data)
+    if not {"state_code", "year"}.issubset(df.columns):
+        raise ValueError("Data must include 'state_code' and 'year' columns")
+
+    df = df.dropna(subset=["state_code", "year"]).copy()
+    df["state_code"] = df["state_code"].str.upper().str.strip()
+    df["year"] = df["year"].astype(int)
+
+    all_states = set(SimpleDataHealthCheck().ALL_STATES)
+
+    missing = []
+    for yr in range(start_year, end_year + 1):
+        states_present = set(df.loc[df["year"] == yr, "state_code"].unique())
+        for state in sorted(all_states - states_present):
+            missing.append({"state": state, "year": yr})
+    return missing
+
+
 class SimpleDataHealthCheck:
     """Simple health check for insurance filings data.
     Note: Florida is excluded from all checks (no FL data available).
