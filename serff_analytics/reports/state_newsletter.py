@@ -4,7 +4,8 @@ import logging
 from jinja2 import Environment, FileSystemLoader
 import duckdb
 from typing import Optional, Tuple
-from src.database import get_month_boundaries
+# get_month_boundaries lives in the db utilities module
+from serff_analytics.db.utils import get_month_boundaries
 
 logger = logging.getLogger(__name__)
 
