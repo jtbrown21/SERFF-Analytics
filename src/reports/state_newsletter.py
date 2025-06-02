@@ -4,6 +4,7 @@ import logging
 from jinja2 import Environment, FileSystemLoader
 import duckdb
 from typing import Optional, Tuple
+from src.database import get_month_boundaries
 
 logger = logging.getLogger(__name__)
 
@@ -63,13 +64,33 @@ class StateNewsletterReport:
     def _get_carrier_count(self, conn):
         """Return unique carrier count or None on failure."""
         try:
-            result = conn.execute(
-                "SELECT COUNT(DISTINCT Company) FROM filings"
-            ).fetchone()
+            result = conn.execute("SELECT COUNT(DISTINCT Company) FROM filings").fetchone()
             return int(result[0]) if result else None
         except Exception as exc:
             logger.error("Carrier count query failed: %s", exc)
             return None
+
+    def _get_product_line(self, state: str, start: datetime, end: datetime) -> str:
+        """Return the most common product line for a state in the period."""
+        query = """
+            SELECT Product_Line, COUNT(*) as cnt
+            FROM filings
+            WHERE State = ?
+              AND Effective_Date >= ?
+              AND Effective_Date < ?
+            GROUP BY Product_Line
+            ORDER BY cnt DESC
+            LIMIT 1
+        """
+        conn = self._get_connection()
+        try:
+            row = conn.execute(query, [state, start, end]).fetchone()
+        except Exception as exc:
+            logger.error("Product line query failed: %s", exc)
+            conn.close()
+            return ""
+        conn.close()
+        return row[0] if row else ""
 
     def _market_summary(self, state: str, start: datetime, end: datetime):
         """Return summary metrics for a state within a month"""
@@ -130,15 +151,11 @@ class StateNewsletterReport:
             effective = "-"
             if eff:
                 try:
-                    effective = datetime.strptime(str(eff), "%Y-%m-%d").strftime(
-                        "%b %d"
-                    )
+                    effective = datetime.strptime(str(eff), "%Y-%m-%d").strftime("%b %d")
                 except Exception:
                     effective = "-"
             display_name = (
-                company
-                if company and company != "Not specified in document"
-                else subsidiary
+                company if company and company != "Not specified in document" else subsidiary
             )
             cards.append(
                 {
@@ -173,13 +190,15 @@ class StateNewsletterReport:
         return {
             "total_filings": format_number_short(total_filings),
             "total_policyholders": format_number_short(policyholders),
-            "carriers_tracked": (
-                format_number_short(carriers) if carriers is not None else "0"
-            ),
+            "carriers_tracked": (format_number_short(carriers) if carriers is not None else "0"),
         }
 
     def generate(self, state: str, month: Optional[str] = None):
         start, end, label = self._parse_month(month)
+        start_bound, end_bound = get_month_boundaries(start.year, start.month)
+        product_line = self._get_product_line(state, start, end)
+        start_display = start_bound.strftime("%B %d, %Y")
+        end_display = end_bound.strftime("%B %d, %Y")
 
         summary = self._market_summary(state, start, end) or {
             "companies": 0,
@@ -198,6 +217,9 @@ class StateNewsletterReport:
         html = self.template.render(
             report_month=month_label,
             state=state,
+            product_line=product_line,
+            start_date=start_display,
+            end_date=end_display,
             summary=summary,
             rate_cards=cards,
             stats=stats,
@@ -220,9 +242,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Generate a state newsletter")
     parser.add_argument("state", help="Target state")
-    parser.add_argument(
-        "--month", dest="month", help="Target month YYYY-MM", required=False
-    )
+    parser.add_argument("--month", dest="month", help="Target month YYYY-MM", required=False)
     args = parser.parse_args()
 
     report = StateNewsletterReport()
