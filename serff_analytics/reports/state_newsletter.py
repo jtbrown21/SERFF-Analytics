@@ -12,6 +12,10 @@ from serff_analytics.config import Config
 logger = logging.getLogger(__name__)
 
 
+class NoDataError(Exception):
+    """Raised when no filings exist for the requested report period."""
+
+
 def format_number_short(value):
     """Convert large numbers to a shortened human readable format."""
     if value is None:
@@ -218,6 +222,33 @@ class StateNewsletterReport:
 
     def generate(self, state: str, month: Optional[str] = None):
         start, end, label = self._parse_month(month)
+
+        # Check if any filings exist for the requested state and period
+        conn = self._get_connection()
+        try:
+            count = conn.execute(
+                """
+                    SELECT COUNT(*) FROM filings
+                    WHERE State = ? AND Effective_Date >= ? AND Effective_Date < ?
+                    """,
+                [state, start, end],
+            ).fetchone()[0]
+        except Exception as exc:
+            logger.error("Data availability check failed: %s", exc)
+            conn.close()
+            raise
+        conn.close()
+        if count == 0:
+            logger.error(
+                "No filings found for state %s between %s and %s",
+                state,
+                start,
+                end,
+            )
+            raise NoDataError(
+                "No filings available for this period. Please run the sync to populate the database."
+            )
+
         start_bound, end_bound = get_month_boundaries(start.year, start.month)
         product_line = self._get_product_line(state, start, end)
         start_display = start_bound.strftime("%B %d, %Y")
