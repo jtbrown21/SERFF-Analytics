@@ -1,6 +1,68 @@
 import duckdb
 import pandas as pd
 from datetime import datetime
+import logging
+
+
+logger = logging.getLogger(__name__)
+
+
+def check_state_filing_completeness(data, start_year=2020, end_year=2024):
+    """Return missing state/year combinations.
+
+    Parameters
+    ----------
+    data : DataFrame | list[dict]
+        Filing data with ``state_code`` and ``year`` fields. ``filing_status``
+        is optional and not used directly.
+    start_year : int, default 2020
+        Beginning of the year range to validate.
+    end_year : int, default 2024
+        End of the year range (inclusive).
+
+    This function previously only looked for ``NaN`` values when determining
+    missing filings which meant a state with **no rows at all** for a given
+    year (e.g. WA in 2024) was incorrectly treated as complete.  The new
+    implementation cross joins all expected states with the specified year range
+    so completely absent records are flagged.
+    """
+
+    df = pd.DataFrame(data)
+    if not {"state_code", "year"}.issubset(df.columns):
+        raise ValueError("Data must include 'state_code' and 'year' columns")
+
+    df = df.dropna(subset=["state_code", "year"]).copy()
+    df["state_code"] = df["state_code"].str.upper().str.strip()
+    df["year"] = df["year"].astype(int)
+
+    if "filing_status" in df.columns:
+        df["filing_status"] = df["filing_status"].astype(str).str.strip()
+        valid_df = df[
+            df["filing_status"].notna() & (df["filing_status"] != "") & (df["filing_status"] != "0")
+        ]
+    else:
+        valid_df = df
+
+    all_states = set(SimpleDataHealthCheck().ALL_STATES)
+
+    missing = []
+    for yr in range(start_year, end_year + 1):
+        yearly = valid_df[valid_df["year"] == yr]
+        counts = yearly["state_code"].value_counts()
+        logger.debug("%s raw counts: %s", yr, counts.to_dict())
+        if yr == 2024:
+            sample = df[(df["state_code"] == "WA") & (df["year"] == 2024)]
+            if sample.empty:
+                logger.debug("No WA records for 2024")
+            else:
+                logger.debug("Sample WA 2024 rows:\n%s", sample.head())
+        states_present = set(yearly["state_code"].unique())
+        missing_states = sorted(all_states - states_present)
+        logger.debug("%s present states: %s", yr, sorted(states_present))
+        logger.debug("%s missing states: %s", yr, missing_states)
+        for state in missing_states:
+            missing.append({"state": state, "year": yr})
+    return missing
 
 
 class SimpleDataHealthCheck:
