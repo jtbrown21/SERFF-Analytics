@@ -3,7 +3,7 @@
 ## 1. Functionality Overview
 
 ### Purpose
-`src/data_health_check.py` provides utilities to validate the completeness and quality of insurance filings stored in the local DuckDB database.
+`serff_analytics/health/data_health_check.py` provides utilities to validate the completeness and quality of insurance filings stored in the local DuckDB database.
 
 ### Components
 - `check_state_filing_completeness` – identifies missing state/year combinations in a dataset.
@@ -53,7 +53,7 @@
 | **High** | Manual DB connection handling | Risk of unclosed connections on error | Use `with duckdb.connect()` context managers | 1h | Unit tests for connection closure |
 | **Medium** | SQL string interpolation | Potential injection if parameters change | Use parameterized queries | 1.5h | Tests using malicious input |
 | **Medium** | Duplicate check performance | Slow on large datasets | Create indexes on frequent grouping columns or limit columns considered duplicates | 2h | Benchmark runtime before/after |
-| **Low** | Outdated README command (`data_health_checker`) | Confusing for users | Update README to `python -m src.data_health_check` | 0.25h | N/A |
+| **Low** | Outdated README command (`data_health_checker`) | Confusing for users | Update README to `python -m serff_analytics.health.data_health_check` | 0.25h | N/A |
 
 ## 6. Refactoring Suggestions
 - Encapsulate database operations in a small utility class or use `DatabaseManager` from other modules for consistency.

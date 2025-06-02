@@ -10,7 +10,7 @@ def format_python_files():
     
     # Find all Python files
     py_files = []
-    for root, dirs, files in os.walk("src"):
+    for root, dirs, files in os.walk("serff_analytics"):
         for file in files:
             if file.endswith(".py"):
                 py_files.append(os.path.join(root, file))
