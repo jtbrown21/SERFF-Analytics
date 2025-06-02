@@ -75,7 +75,7 @@ command line.
 python -m src.agent_report_v2_refined > reports/latest_report.html
 
 # Run basic health checks on the data
-python -m src.data_health_checker
+python -m src.data_health_check --overview --year 2024
 ```
 
 The health check outputs missing states and duplicate record information so you
