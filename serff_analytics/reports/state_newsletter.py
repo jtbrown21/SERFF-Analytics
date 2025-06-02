@@ -130,12 +130,12 @@ class StateNewsletterReport:
         query = f"""
             SELECT
                 COUNT(DISTINCT Company) FILTER (WHERE Premium_Change_Number > 0) AS companies,
-                ROUND(AVG(CASE WHEN Premium_Change_Number > 0 THEN Premium_Change_Number END) * 100, 1) AS avg_increase_pct,
-                COALESCE(SUM(Policyholders_Affected_Number), 0) AS policies
+                ROUND(AVG(Premium_Change_Number) FILTER (WHERE Premium_Change_Number > 0) * 100, 1) AS avg_increase_pct,
+                COALESCE(SUM(Policyholders_Affected_Number) FILTER (WHERE Premium_Change_Number > 0), 0) AS policies
             FROM filings
             WHERE State = ?
                 AND Effective_Date >= ?
-                AND Effective_Date < ?
+                AND Effective_Date <= ?
         """
         conn = self._get_connection()
         try:
