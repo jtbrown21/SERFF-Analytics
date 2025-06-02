@@ -44,7 +44,11 @@ python scripts/verify_deps.py
 
 The project stores data in a DuckDB file at `data/insurance_filings.db`. If the
 `data` folder is missing, it will be created automatically when you run the sync
-tool.
+tool. You can also create an empty database using the helper script:
+
+```bash
+python scripts/init_database.py
+```
 
 1. Set your Airtable credentials as environment variables (see
    `serff_analytics/config.py` for variable names).
@@ -98,3 +102,7 @@ Database (DuckDB) --> state_newsletter.py --> templates/state_newsletter.html --
 ```
 
 Reports are generated for a single state at a time. Use the optional `--month` flag to target a specific month (`YYYY-MM`). The output file name now includes the state and month for clarity.
+
+## Troubleshooting
+
+If you encounter an error like `duckdb.duckdb.IOException: IO Error: Cannot open file` when generating reports, the database file is likely missing. Run `python scripts/init_database.py` to create an empty database or `python scripts/sync_demo.py` to pull data from Airtable.
