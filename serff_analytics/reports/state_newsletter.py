@@ -4,8 +4,10 @@ import logging
 from jinja2 import Environment, FileSystemLoader
 import duckdb
 from typing import Optional, Tuple
+
 # get_month_boundaries lives in the db utilities module
 from serff_analytics.db.utils import get_month_boundaries
+from serff_analytics.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +33,17 @@ def format_number_short(value):
 class StateNewsletterReport:
     """Generate state-specific newsletter reports"""
 
-    def __init__(self, db_path="data/insurance_filings.db", template_dir="templates"):
-        self.db_path = db_path
+    def __init__(self, db_path: Optional[str] = None, template_dir: str = "templates"):
+        """Initialize the report generator.
+
+        Parameters
+        ----------
+        db_path: Optional[str]
+            Location of the DuckDB database. Falls back to `Config.DB_PATH` if not provided.
+        template_dir: str
+            Directory containing the newsletter template.
+        """
+        self.db_path = db_path or Config.DB_PATH
         self.env = Environment(loader=FileSystemLoader(template_dir))
         self.template = self.env.get_template("state_newsletter.html")
 
@@ -60,7 +71,18 @@ class StateNewsletterReport:
         return start, end, label
 
     def _get_connection(self):
-        return duckdb.connect(self.db_path)
+        """Return a DuckDB connection, creating the DB if necessary."""
+        if not os.path.exists(self.db_path):
+            logger.warning("Database file %s not found. Initializing new database.", self.db_path)
+            from serff_analytics.db import DatabaseManager
+
+            # This will create the DB and schema
+            DatabaseManager(self.db_path)
+        try:
+            return duckdb.connect(self.db_path)
+        except Exception as exc:
+            logger.error("Failed to connect to database %s: %s", self.db_path, exc)
+            raise
 
     def _get_carrier_count(self, conn):
         """Return unique carrier count or None on failure."""
