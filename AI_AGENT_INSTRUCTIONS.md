@@ -11,13 +11,13 @@
 source venv/bin/activate
 
 # Run tests
-python run_tests.py
+python scripts/run_tests.py
 
 # Format code
 python format_code.py
 
 # Generate report
-python -m src.agent_report_v2_refined
+python -m serff_analytics.reports.agent_report_v2_refined
 
 # Check data
-python check_data.py
+python scripts/check_data.py

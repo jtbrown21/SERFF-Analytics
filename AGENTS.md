@@ -21,15 +21,15 @@ HTML Reports (Email/Web)
 
 ### Key Files
 
-1. **Best Report Version**: `src/agent_report_v2_refined.py`
+1. **Best Report Version**: `serff_analytics/reports/agent_report_v2_refined.py`
    - Cleanest, most focused version
    - Shows competitor rate increases only
    - Includes action calendar with reminder buttons
 
 2. **Data Pipeline**:
-   - `src/airtable_sync.py` - Syncs data from Airtable
-   - `src/database.py` - DuckDB schema management
-   - `src/analytics_direct.py` - SQL analytics functions
+   - `serff_analytics/ingest/airtable_sync.py` - Syncs data from Airtable
+   - `serff_analytics/db/utils.py` - DuckDB schema management helpers
+   - `serff_analytics/analytics/insights.py` - SQL analytics functions
 
 3. **Other Versions** (for reference):
    - `agent_report.py` - Original version
@@ -56,6 +56,6 @@ Key fields in 'filings' table:
 - Product_Line: Type of insurance
 
 ## New Reporting Capabilities
-- `src/reports/state_newsletter.py` generates monthly HTML newsletters for a specific state using `templates/state_newsletter.html`.
-- Run with `python -m src.reports.state_newsletter <State>` to produce a report file in the `reports/` directory.
+- `serff_analytics/reports/state_newsletter.py` generates monthly HTML newsletters for a specific state using `templates/state_newsletter.html`.
+- Run with `python -m serff_analytics.reports.state_newsletter <State>` to produce a report file in the `reports/` directory.
 - Data is pulled from DuckDB via `DatabaseManager`. Ensure the database is synced before generating reports.
