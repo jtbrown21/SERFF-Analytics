@@ -75,13 +75,19 @@ class StateNewsletterReport:
         return start, end, label
 
     def _get_connection(self):
-        """Return a DuckDB connection, creating the DB if necessary."""
-        if not os.path.exists(self.db_path):
-            logger.warning("Database file %s not found. Initializing new database.", self.db_path)
-            from serff_analytics.db import DatabaseManager
+        """Return a DuckDB connection.
 
-            # This will create the DB and schema
-            DatabaseManager(self.db_path)
+        Raises
+        ------
+        FileNotFoundError
+            If the configured database file does not exist.
+        """
+        if not os.path.exists(self.db_path):
+            logger.error(
+                "Database file %s not found. Run 'python scripts/sync_demo.py' to initialize it.",
+                self.db_path,
+            )
+            raise FileNotFoundError(f"Database file {self.db_path} not found")
         try:
             return duckdb.connect(self.db_path)
         except Exception as exc:
