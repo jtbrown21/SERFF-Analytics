@@ -164,28 +164,35 @@ class SimpleDataHealthCheck:
     def _ensure_indexes(self) -> None:
         """Create indexes used for duplicate detection."""
         with duckdb.connect(self.db_path) as conn:
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_dup ON filings(Company, Subsidiary, State, Product_Line, Rate_Change_Type, Effective_Date)"
-            )
-            logger.debug("Indexes ensured on database")
+            try:
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_dup ON filings(Company, Subsidiary, State, Product_Line, Rate_Change_Type, Effective_Date)"
+                )
+                logger.debug("Indexes ensured on database")
+            except duckdb.CatalogException:
+                logger.debug("Filings table not found when ensuring indexes")
 
-    def check_missing_states_by_year(self, year: int):
-        """Return a list of states with no filings for a specific year."""
-        logger.debug("Checking missing states for year %s", year)
+    def check_state_filing_completeness(self, start_year: int, end_year: int) -> list[dict]:
+        """Return missing state/year combinations for the given range."""
+        logger.debug("Checking state filing completeness from %s to %s", start_year, end_year)
         query = """
-        SELECT DISTINCT State
+        SELECT DISTINCT State, YEAR(Effective_Date) AS year
         FROM filings
-        WHERE State IS NOT NULL
-            AND YEAR(Effective_Date) = ?
-        ORDER BY State
+        WHERE Effective_Date IS NOT NULL
+            AND YEAR(Effective_Date) BETWEEN ? AND ?
         """
         with duckdb.connect(self.db_path) as conn:
-            states_with_data = conn.execute(query, [year]).fetchdf()
-        states_in_db = {
-            self.NAME_TO_ABBR.get(state, state) for state in states_with_data["State"].tolist()
-        }
-        missing_states = sorted(set(self.ALL_STATES) - states_in_db)
-        return missing_states
+            df = conn.execute(query, [start_year, end_year]).fetchdf()
+
+        df["state_abbr"] = df["State"].map(self.NAME_TO_ABBR).fillna(df["State"])
+
+        all_states = set(self.ALL_STATES)
+        missing: list[dict] = []
+        for yr in range(start_year, end_year + 1):
+            states_present = set(df.loc[df["year"] == yr, "state_abbr"].unique())
+            for state in sorted(all_states - states_present):
+                missing.append({"state": state, "year": yr})
+        return missing
 
     def check_perfect_duplicates(self, year: int | None = None) -> pd.DataFrame:
         """Find records where all tracked fields match exactly."""
@@ -264,7 +271,8 @@ class SimpleDataHealthCheck:
             print(f"{year:<6} {filings:<12} {states:<15}")
             missing_count = len(self.ALL_STATES) - row["states_with_data"]
             if 0 < missing_count < 10:
-                missing_states = self.check_missing_states_by_year(year)
+                missing_data = self.check_state_filing_completeness(year, year)
+                missing_states = [m["state"] for m in missing_data]
                 print(f"       Missing: {', '.join(missing_states)}")
         bad_years_query = """
         SELECT 
@@ -309,7 +317,8 @@ class SimpleDataHealthCheck:
         missing = []
         if year:
             print(f"\n\U0001f5fa\ufe0f  STATE COVERAGE FOR {year}")
-            missing = self.check_missing_states_by_year(year)
+            missing_data = self.check_state_filing_completeness(year, year)
+            missing = [m["state"] for m in missing_data]
             if missing:
                 print(f"\u274c {len(missing)} states missing: {', '.join(missing)}")
             else:
