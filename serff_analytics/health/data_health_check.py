@@ -6,47 +6,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def check_state_filing_completeness(data, start_year=2020, end_year=2024):
-    """Return missing state/year combinations.
-
-    Parameters
-    ----------
-    data : DataFrame | list[dict]
-        Filing data with ``state_code`` and ``year`` fields. ``filing_status``
-        is optional and not used directly.
-    start_year : int, default 2020
-        Beginning of the year range to validate.
-    end_year : int, default 2024
-        End of the year range (inclusive).
-
-    This function previously only looked for ``NaN`` values when determining
-    missing filings which meant a state with **no rows at all** for a given
-    year (e.g. WA in 2024) was incorrectly treated as complete.  The new
-    implementation cross joins all expected states with the specified year range
-    so completely absent records are flagged.
-    """
-
-    df = pd.DataFrame(data)
-    if not {"state_code", "year"}.issubset(df.columns):
-        raise ValueError("Data must include 'state_code' and 'year' columns")
-
-    df = df.dropna(subset=["state_code", "year"]).copy()
-    df["state_code"] = df["state_code"].str.upper().str.strip()
-    df["year"] = df["year"].astype(int)
-
-    all_states = set(SimpleDataHealthCheck().ALL_STATES)
-
-    missing = []
-    for yr in range(start_year, end_year + 1):
-        states_present = set(df.loc[df["year"] == yr, "state_code"].unique())
-        for state in sorted(all_states - states_present):
-            missing.append({"state": state, "year": yr})
-    return missing
-
-
 class SimpleDataHealthCheck:
-    """Simple health check for insurance filings data.
-    Note: Florida is excluded from all checks (no FL data available).
+    """Validate health of insurance filings data stored in DuckDB.
+
+    The ``filings`` table is expected to contain full state names in the
+    ``State`` column and filing dates between 2020 and 2024.  Florida filings
+    are not available and therefore excluded from completeness checks. The
+    District of Columbia is also ignored when calculating coverage.
     """
 
     def __init__(self, db_path="data/insurance_filings.db"):
@@ -103,96 +69,157 @@ class SimpleDataHealthCheck:
             "WV",
             "WI",
             "WY",
-            "DC",
         ]
 
         self.NAME_TO_ABBR = {
-            "Alabama": "AL",
-            "Alaska": "AK",
-            "Arizona": "AZ",
-            "Arkansas": "AR",
-            "California": "CA",
-            "Colorado": "CO",
-            "Connecticut": "CT",
-            "Delaware": "DE",
-            "Georgia": "GA",
-            "Hawaii": "HI",
-            "Idaho": "ID",
-            "Illinois": "IL",
-            "Indiana": "IN",
-            "Iowa": "IA",
-            "Kansas": "KS",
-            "Kentucky": "KY",
-            "Louisiana": "LA",
-            "Maine": "ME",
-            "Maryland": "MD",
-            "Massachusetts": "MA",
-            "Michigan": "MI",
-            "Minnesota": "MN",
-            "Mississippi": "MS",
-            "Missouri": "MO",
-            "Montana": "MT",
-            "Nebraska": "NE",
-            "Nevada": "NV",
-            "New Hampshire": "NH",
-            "New Jersey": "NJ",
-            "New Mexico": "NM",
-            "New York": "NY",
-            "North Carolina": "NC",
-            "North Dakota": "ND",
-            "Ohio": "OH",
-            "Oklahoma": "OK",
-            "Oregon": "OR",
-            "Pennsylvania": "PA",
-            "Rhode Island": "RI",
-            "South Carolina": "SC",
-            "South Dakota": "SD",
-            "Tennessee": "TN",
-            "Texas": "TX",
-            "Utah": "UT",
-            "Vermont": "VT",
-            "Virginia": "VA",
-            "Washington": "WA",
-            "West Virginia": "WV",
-            "Wisconsin": "WI",
-            "Wyoming": "WY",
-            "District of Columbia": "DC",
+            "ALABAMA": "AL",
+            "ALASKA": "AK",
+            "ARIZONA": "AZ",
+            "ARKANSAS": "AR",
+            "CALIFORNIA": "CA",
+            "COLORADO": "CO",
+            "CONNECTICUT": "CT",
+            "DELAWARE": "DE",
+            "GEORGIA": "GA",
+            "HAWAII": "HI",
+            "IDAHO": "ID",
+            "ILLINOIS": "IL",
+            "INDIANA": "IN",
+            "IOWA": "IA",
+            "KANSAS": "KS",
+            "KENTUCKY": "KY",
+            "LOUISIANA": "LA",
+            "MAINE": "ME",
+            "MARYLAND": "MD",
+            "MASSACHUSETTS": "MA",
+            "MICHIGAN": "MI",
+            "MINNESOTA": "MN",
+            "MISSISSIPPI": "MS",
+            "MISSOURI": "MO",
+            "MONTANA": "MT",
+            "NEBRASKA": "NE",
+            "NEVADA": "NV",
+            "NEW HAMPSHIRE": "NH",
+            "NEW JERSEY": "NJ",
+            "NEW MEXICO": "NM",
+            "NEW YORK": "NY",
+            "NORTH CAROLINA": "NC",
+            "NORTH DAKOTA": "ND",
+            "OHIO": "OH",
+            "OKLAHOMA": "OK",
+            "OREGON": "OR",
+            "PENNSYLVANIA": "PA",
+            "RHODE ISLAND": "RI",
+            "SOUTH CAROLINA": "SC",
+            "SOUTH DAKOTA": "SD",
+            "TENNESSEE": "TN",
+            "TEXAS": "TX",
+            "UTAH": "UT",
+            "VERMONT": "VT",
+            "VIRGINIA": "VA",
+            "WASHINGTON": "WA",
+            "WEST VIRGINIA": "WV",
+            "WISCONSIN": "WI",
+            "WYOMING": "WY",
+            "DISTRICT OF COLUMBIA": "DC",
+        }
+
+        self.STATE_NORMALIZATION = {
+            **{name: abbr for name, abbr in self.NAME_TO_ABBR.items()},
+            **{abbr: abbr for abbr in self.NAME_TO_ABBR.values()},
         }
 
         self._ensure_indexes()
 
+    def normalize_state(self, value: str | None) -> str | None:
+        """Return a normalized state abbreviation or ``None``.
+
+        Parameters
+        ----------
+        value : str | None
+            Raw state value from the database.
+
+        Returns
+        -------
+        str | None
+            Two-letter abbreviation or ``None`` if the value can't be mapped or
+            represents an excluded state.
+        """
+        if not value or not isinstance(value, str):
+            return None
+        key = value.strip().upper()
+        if not key:
+            return None
+        abbr = self.STATE_NORMALIZATION.get(key)
+        if not abbr:
+            logger.warning("Unmapped state value '%s'", value)
+            return None
+        if abbr in {"FL", "DC"}:
+            return None
+        return abbr
+
+    def _safe_query(self, query: str, params: list | tuple | None = None) -> pd.DataFrame:
+        """Execute a SQL query safely and return a DataFrame."""
+        try:
+            with duckdb.connect(self.db_path) as conn:
+                return conn.execute(query, params or []).fetchdf()
+        except duckdb.CatalogException as exc:
+            logger.error("Catalog error executing query: %s", exc)
+        except Exception as exc:  # pragma: no cover - connection errors
+            logger.error("Database error executing query: %s", exc)
+        return pd.DataFrame()
+
     def _ensure_indexes(self) -> None:
-        """Create indexes used for duplicate detection."""
-        with duckdb.connect(self.db_path) as conn:
-            try:
+        """Create indexes used for completeness and duplicate checks."""
+        try:
+            with duckdb.connect(self.db_path) as conn:
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_filings_state_year ON filings(State, YEAR(Effective_Date))"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_filings_company_state_line_date ON filings(Company, State, Product_Line, Effective_Date)"
+                )
                 conn.execute(
                     "CREATE INDEX IF NOT EXISTS idx_dup ON filings(Company, Subsidiary, State, Product_Line, Rate_Change_Type, Effective_Date)"
                 )
                 logger.debug("Indexes ensured on database")
-            except duckdb.CatalogException:
-                logger.debug("Filings table not found when ensuring indexes")
+        except duckdb.CatalogException:
+            logger.debug("Filings table not found when ensuring indexes")
+        except Exception as exc:
+            logger.error("Error ensuring indexes: %s", exc)
 
-    def check_state_filing_completeness(self, start_year: int, end_year: int) -> list[dict]:
-        """Return missing state/year combinations for the given range."""
+    def check_state_filing_completeness(self, start_year: int, end_year: int) -> dict:
+        """Return missing state/year information and diagnostics."""
         logger.debug("Checking state filing completeness from %s to %s", start_year, end_year)
         query = """
-        SELECT DISTINCT State, YEAR(Effective_Date) AS year
+        SELECT State, Effective_Date
         FROM filings
-        WHERE Effective_Date IS NOT NULL
-            AND YEAR(Effective_Date) BETWEEN ? AND ?
+        WHERE (Effective_Date IS NOT NULL AND YEAR(Effective_Date) BETWEEN ? AND ?)
+              OR Effective_Date IS NULL
         """
-        with duckdb.connect(self.db_path) as conn:
-            df = conn.execute(query, [start_year, end_year]).fetchdf()
+        df = self._safe_query(query, [start_year, end_year])
 
-        df["state_abbr"] = df["State"].map(self.NAME_TO_ABBR).fillna(df["State"])
+        records_processed = len(df)
+        null_dates_count = int(df["Effective_Date"].isna().sum())
+
+        df["state_abbr"] = df["State"].apply(self.normalize_state)
+        unmapped_states = sorted(df.loc[df["state_abbr"].isna(), "State"].dropna().unique())
+        df = df.dropna(subset=["state_abbr", "Effective_Date"]).copy()
+        df["year"] = df["Effective_Date"].dt.year
 
         all_states = set(self.ALL_STATES)
         missing: list[dict] = []
         for yr in range(start_year, end_year + 1):
-            states_present = set(df.loc[df["year"] == yr, "state_abbr"].unique())
+            states_present = set(df.loc[df["year"] == yr, "state_abbr"].dropna().unique())
             for state in sorted(all_states - states_present):
                 missing.append({"state": state, "year": yr})
-        return missing
+
+        return {
+            "missing": missing,
+            "unmapped_states": unmapped_states,
+            "null_dates_count": null_dates_count,
+            "records_processed": records_processed,
+        }
 
     def check_perfect_duplicates(self, year: int | None = None) -> pd.DataFrame:
         """Find records where all tracked fields match exactly."""
@@ -239,8 +266,7 @@ class SimpleDataHealthCheck:
         SELECT * FROM duplicate_groups
         ORDER BY duplicate_count DESC, Company, State
         """
-        with duckdb.connect(self.db_path) as conn:
-            duplicates = conn.execute(query, params).fetchdf()
+        duplicates = self._safe_query(query, params)
         return duplicates
 
     def get_year_overview(self) -> pd.DataFrame:
@@ -250,6 +276,10 @@ class SimpleDataHealthCheck:
             YEAR(Effective_Date) as year,
             COUNT(*) as total_filings,
             COUNT(DISTINCT State) as states_with_data,
+            COUNT(DISTINCT Company) as unique_companies,
+            AVG(Premium_Change_Number) as avg_premium_change,
+            SUM(CASE WHEN Premium_Change_Number IS NULL THEN 1 ELSE 0 END) as missing_premium_change,
+            SUM(CASE WHEN Policyholders_Affected_Number IS NULL THEN 1 ELSE 0 END) as missing_policyholders,
             MIN(Effective_Date) as first_filing,
             MAX(Effective_Date) as last_filing
         FROM filings
@@ -258,21 +288,34 @@ class SimpleDataHealthCheck:
         GROUP BY YEAR(Effective_Date)
         ORDER BY year DESC
         """
-        with duckdb.connect(self.db_path) as conn:
-            overview = conn.execute(query).fetchdf()
+        overview = self._safe_query(query)
         print("\U0001f4ca DATA OVERVIEW BY YEAR")
-        print("=" * 50)
-        print(f"{'Year':<6} {'Filings':<12} {'States':<15}")
-        print("-" * 50)
+        print("=" * 80)
+        header = (
+            f"{'Year':<6} {'Filings':<12} {'States':<15} {'Companies':<12} "
+            f"{'Avg Change':<12} {'Missing Prem':<13} {'Missing PH':<12}"
+        )
+        print(header)
+        print("-" * 80)
         for _, row in overview.iterrows():
             year = int(row["year"])
             filings = f"{row['total_filings']:,}"
             states = f"{row['states_with_data']}/{len(self.ALL_STATES)}"
-            print(f"{year:<6} {filings:<12} {states:<15}")
+            companies = f"{row['unique_companies']:,}"
+            avg_change = (
+                f"{row['avg_premium_change']:.2%}"
+                if row["avg_premium_change"] is not None
+                else "n/a"
+            )
+            miss_prem = f"{int(row['missing_premium_change']):,}"
+            miss_ph = f"{int(row['missing_policyholders']):,}"
+            print(
+                f"{year:<6} {filings:<12} {states:<15} {companies:<12} {avg_change:<12} {miss_prem:<13} {miss_ph:<12}"
+            )
             missing_count = len(self.ALL_STATES) - row["states_with_data"]
             if 0 < missing_count < 10:
-                missing_data = self.check_state_filing_completeness(year, year)
-                missing_states = [m["state"] for m in missing_data]
+                completeness = self.check_state_filing_completeness(year, year)
+                missing_states = [m["state"] for m in completeness["missing"]]
                 print(f"       Missing: {', '.join(missing_states)}")
         bad_years_query = """
         SELECT 
@@ -293,7 +336,13 @@ class SimpleDataHealthCheck:
         return overview
 
     def run_health_check(self, year: int | None = None) -> None:
-        """Run the health checks and print results."""
+        """Run the health checks and print results.
+
+        Parameters
+        ----------
+        year : int | None
+            If provided, limit checks to this year.
+        """
         logger.info("Running health check for %s", year if year else "all years")
         print("\n\U0001f3e5 INSURANCE DATA HEALTH CHECK")
         print(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -314,15 +363,19 @@ class SimpleDataHealthCheck:
         else:
             period = f" in {year}" if year else ""
             print(f"\u2705 No perfect duplicates found{period}")
-        missing = []
+        missing: list[str] = []
         if year:
             print(f"\n\U0001f5fa\ufe0f  STATE COVERAGE FOR {year}")
-            missing_data = self.check_state_filing_completeness(year, year)
-            missing = [m["state"] for m in missing_data]
+            completeness = self.check_state_filing_completeness(year, year)
+            missing = [m["state"] for m in completeness["missing"]]
             if missing:
                 print(f"\u274c {len(missing)} states missing: {', '.join(missing)}")
             else:
                 print("\u2705 All expected states have data")
+            if completeness["unmapped_states"]:
+                print("   Unmapped states:", ", ".join(completeness["unmapped_states"]))
+            if completeness["null_dates_count"]:
+                print(f"   Records with null dates: {completeness['null_dates_count']}")
         print("\n" + "=" * 50)
         if year:
             print(f"SUMMARY FOR {year}:")
