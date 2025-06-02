@@ -1,6 +1,9 @@
 import duckdb
 import pandas as pd
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def check_state_filing_completeness(data, start_year=2020, end_year=2024):
@@ -156,18 +159,28 @@ class SimpleDataHealthCheck:
             "District of Columbia": "DC",
         }
 
+        self._ensure_indexes()
+
+    def _ensure_indexes(self) -> None:
+        """Create indexes used for duplicate detection."""
+        with duckdb.connect(self.db_path) as conn:
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_dup ON filings(Company, Subsidiary, State, Product_Line, Rate_Change_Type, Effective_Date)"
+            )
+            logger.debug("Indexes ensured on database")
+
     def check_missing_states_by_year(self, year: int):
         """Return a list of states with no filings for a specific year."""
-        conn = duckdb.connect(self.db_path)
-        query = f"""
+        logger.debug("Checking missing states for year %s", year)
+        query = """
         SELECT DISTINCT State
         FROM filings
         WHERE State IS NOT NULL
-            AND YEAR(Effective_Date) = {year}
+            AND YEAR(Effective_Date) = ?
         ORDER BY State
         """
-        states_with_data = conn.execute(query).fetchdf()
-        conn.close()
+        with duckdb.connect(self.db_path) as conn:
+            states_with_data = conn.execute(query, [year]).fetchdf()
         states_in_db = {
             self.NAME_TO_ABBR.get(state, state) for state in states_with_data["State"].tolist()
         }
@@ -176,11 +189,12 @@ class SimpleDataHealthCheck:
 
     def check_perfect_duplicates(self, year: int | None = None) -> pd.DataFrame:
         """Find records where all tracked fields match exactly."""
-        conn = duckdb.connect(self.db_path)
-        year_filter = f"WHERE YEAR(Effective_Date) = {year}" if year else ""
+        logger.debug("Checking duplicates for year %s", year if year else "ALL")
+        year_filter = "WHERE YEAR(Effective_Date) = ?" if year else ""
+        params: list[int] = [year] if year else []
         query = f"""
         WITH duplicate_groups AS (
-            SELECT 
+            SELECT
                 Company,
                 Subsidiary,
                 State,
@@ -205,7 +219,7 @@ class SimpleDataHealthCheck:
                 STRING_AGG(Record_ID, ', ') as record_ids
             FROM filings
             {year_filter}
-            GROUP BY 
+            GROUP BY
                 Company, Subsidiary, State, Product_Line, Rate_Change_Type,
                 Premium_Change_Number, Premium_Change_Amount_Text, Effective_Date,
                 Previous_Increase_Date, Previous_Increase_Percentage,
@@ -218,15 +232,14 @@ class SimpleDataHealthCheck:
         SELECT * FROM duplicate_groups
         ORDER BY duplicate_count DESC, Company, State
         """
-        duplicates = conn.execute(query).fetchdf()
-        conn.close()
+        with duckdb.connect(self.db_path) as conn:
+            duplicates = conn.execute(query, params).fetchdf()
         return duplicates
 
     def get_year_overview(self) -> pd.DataFrame:
         """Show a quick overview of data by year."""
-        conn = duckdb.connect(self.db_path)
         query = """
-        SELECT 
+        SELECT
             YEAR(Effective_Date) as year,
             COUNT(*) as total_filings,
             COUNT(DISTINCT State) as states_with_data,
@@ -238,7 +251,8 @@ class SimpleDataHealthCheck:
         GROUP BY YEAR(Effective_Date)
         ORDER BY year DESC
         """
-        overview = conn.execute(query).fetchdf()
+        with duckdb.connect(self.db_path) as conn:
+            overview = conn.execute(query).fetchdf()
         print("\U0001f4ca DATA OVERVIEW BY YEAR")
         print("=" * 50)
         print(f"{'Year':<6} {'Filings':<12} {'States':<15}")
@@ -262,8 +276,8 @@ class SimpleDataHealthCheck:
         GROUP BY YEAR(Effective_Date)
         ORDER BY count DESC
         """
-        bad_years = conn.execute(bad_years_query).fetchdf()
-        conn.close()
+        with duckdb.connect(self.db_path) as conn:
+            bad_years = conn.execute(bad_years_query).fetchdf()
         if len(bad_years) > 0:
             print("\n\u26a0\ufe0f  Warning: Found filings with incorrect years:")
             for _, row in bad_years.iterrows():
@@ -272,6 +286,7 @@ class SimpleDataHealthCheck:
 
     def run_health_check(self, year: int | None = None) -> None:
         """Run the health checks and print results."""
+        logger.info("Running health check for %s", year if year else "all years")
         print("\n\U0001f3e5 INSURANCE DATA HEALTH CHECK")
         print(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         if year:
@@ -315,5 +330,24 @@ class SimpleDataHealthCheck:
 
 
 if __name__ == "__main__":
-    checker = SimpleDataHealthCheck("data/insurance_filings.db")
-    checker.get_year_overview()
+    import argparse
+
+    logging.basicConfig(level=logging.INFO)
+
+    parser = argparse.ArgumentParser(description="Run data health checks")
+    parser.add_argument(
+        "--db-path",
+        dest="db_path",
+        default="data/insurance_filings.db",
+        help="Path to DuckDB database",
+    )
+    parser.add_argument("--year", type=int, help="Limit checks to a single year", required=False)
+    parser.add_argument("--overview", action="store_true", help="Show year overview")
+
+    args = parser.parse_args()
+
+    checker = SimpleDataHealthCheck(args.db_path)
+
+    if args.overview:
+        checker.get_year_overview()
+    checker.run_health_check(args.year)
