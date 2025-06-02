@@ -1,5 +1,5 @@
-from src.airtable_sync import AirtableSync
-from src.database import DatabaseManager
+from serff_analytics.ingest.airtable_sync import AirtableSync
+from serff_analytics.db import DatabaseManager
 import duckdb
 
 def test_connection():
