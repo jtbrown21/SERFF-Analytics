@@ -1,3 +1,12 @@
+"""State-specific newsletter generator.
+
+Run via::
+
+    python -m serff_analytics.reports.state_newsletter <State> [--month YYYY-MM] [--test]
+
+The optional ``--test`` flag enables verbose logging of all SQL queries and referenced records.
+"""
+
 import os
 from datetime import datetime
 import logging
@@ -37,7 +46,12 @@ def format_number_short(value):
 class StateNewsletterReport:
     """Generate state-specific newsletter reports"""
 
-    def __init__(self, db_path: Optional[str] = None, template_dir: str = "templates"):
+    def __init__(
+        self,
+        db_path: Optional[str] = None,
+        template_dir: str = "templates",
+        test_mode: bool = False,
+    ):
         """Initialize the report generator.
 
         Parameters
@@ -46,10 +60,74 @@ class StateNewsletterReport:
             Location of the DuckDB database. Falls back to `Config.DB_PATH` if not provided.
         template_dir: str
             Directory containing the newsletter template.
+        test_mode: bool
+            Enable verbose logging of database queries and accessed records.
         """
         self.db_path = db_path or Config.DB_PATH
         self.env = Environment(loader=FileSystemLoader(template_dir))
         self.template = self.env.get_template("state_newsletter.html")
+        self.test_mode = test_mode
+        self.test_stats = {"query_count": 0, "records": 0, "table_counts": {}}
+        if self.test_mode:
+            logger.info("[TEST MODE] Verbose database logging enabled")
+
+    def _extract_table_name(self, query: str) -> str:
+        """Return the first table name found in the query."""
+        import re
+
+        match = re.search(r"FROM\s+(\w+)", query, re.IGNORECASE)
+        return match.group(1) if match else "unknown"
+
+    def _execute_query(
+        self,
+        conn,
+        query: str,
+        params: Optional[list] = None,
+        func_name: str = "",
+    ):
+        """Execute a query and optionally log details in test mode."""
+
+        params = params or []
+        cursor = conn.execute(query, params)
+        rows = cursor.fetchall()
+
+        if self.test_mode:
+            table = self._extract_table_name(query)
+            count = len(rows)
+            self.test_stats["query_count"] += 1
+            self.test_stats["records"] += count
+            self.test_stats["table_counts"][table] = (
+                self.test_stats["table_counts"].get(table, 0) + count
+            )
+            ids = []
+            col_names = [desc[0] for desc in cursor.description]
+            id_idx = None
+            for idx, name in enumerate(col_names):
+                if name.lower() in {"id", "record_id"}:
+                    id_idx = idx
+                    break
+            if id_idx is not None:
+                ids = [row[id_idx] for row in rows]
+            logger.info("[TEST MODE] Database Query Log\n================================")
+            logger.info("Function: %s()", func_name)
+            logger.info("Query: %s", " ".join(query.strip().split()))
+            logger.info("Records accessed: %d records from '%s' table", count, table)
+            logger.info("Record IDs: %s", ids)
+
+        return rows
+
+    def log_summary(self):
+        """Log aggregated query statistics in test mode."""
+
+        if not self.test_mode:
+            return
+        tables = ", ".join(f"{tbl} ({cnt})" for tbl, cnt in self.test_stats["table_counts"].items())
+        logger.info(
+            "Summary:\n- Total queries executed: %d\n- Total records accessed: %d\n- Tables accessed: %s",
+            self.test_stats["query_count"],
+            self.test_stats["records"],
+            tables,
+        )
 
     @staticmethod
     def _parse_month(month_str: Optional[str]) -> Tuple[datetime, datetime, str]:
@@ -97,7 +175,12 @@ class StateNewsletterReport:
     def _get_carrier_count(self, conn):
         """Return unique carrier count or None on failure."""
         try:
-            result = conn.execute("SELECT COUNT(DISTINCT Company) FROM filings").fetchone()
+            rows = self._execute_query(
+                conn,
+                "SELECT COUNT(DISTINCT Company) FROM filings",
+                func_name="_get_carrier_count",
+            )
+            result = rows[0] if rows else None
             return int(result[0]) if result else None
         except Exception as exc:
             logger.error("Carrier count query failed: %s", exc)
@@ -117,7 +200,13 @@ class StateNewsletterReport:
         """
         conn = self._get_connection()
         try:
-            row = conn.execute(query, [state, start, end]).fetchone()
+            rows = self._execute_query(
+                conn,
+                query,
+                [state, start, end],
+                func_name="_get_product_line",
+            )
+            row = rows[0] if rows else None
         except Exception as exc:
             logger.error("Product line query failed: %s", exc)
             conn.close()
@@ -139,7 +228,13 @@ class StateNewsletterReport:
         """
         conn = self._get_connection()
         try:
-            result = conn.execute(query, [state, start, end]).fetchone()
+            rows = self._execute_query(
+                conn,
+                query,
+                [state, start, end],
+                func_name="_market_summary",
+            )
+            result = rows[0] if rows else None
         except Exception as exc:
             logger.error("Market summary query failed: %s", exc)
             conn.close()
@@ -175,7 +270,12 @@ class StateNewsletterReport:
             LIMIT {limit}
         """
         conn = self._get_connection()
-        rows = conn.execute(query, [state, start, end]).fetchall()
+        rows = self._execute_query(
+            conn,
+            query,
+            [state, start, end],
+            func_name="_rate_cards",
+        )
         conn.close()
         cards = []
         for row in rows:
@@ -209,7 +309,12 @@ class StateNewsletterReport:
         """
         conn = self._get_connection()
         try:
-            total_filings, policyholders = conn.execute(query).fetchone()
+            rows = self._execute_query(
+                conn,
+                query,
+                func_name="_overall_stats",
+            )
+            total_filings, policyholders = rows[0]
             carriers = self._get_carrier_count(conn)
         except Exception as exc:
             logger.error("Overall stats query failed: %s", exc)
@@ -232,13 +337,16 @@ class StateNewsletterReport:
         # Check if any filings exist for the requested state and period
         conn = self._get_connection()
         try:
-            count = conn.execute(
+            rows = self._execute_query(
+                conn,
                 """
                     SELECT COUNT(*) FROM filings
                     WHERE State = ? AND Effective_Date >= ? AND Effective_Date < ?
-                    """,
+                """,
                 [state, start, end],
-            ).fetchone()[0]
+                func_name="generate_data_check",
+            )
+            count = rows[0][0]
         except Exception as exc:
             logger.error("Data availability check failed: %s", exc)
             conn.close()
@@ -298,16 +406,18 @@ class StateNewsletterReport:
 if __name__ == "__main__":
     import argparse
 
-    logging.basicConfig(level=logging.INFO)
-
     parser = argparse.ArgumentParser(description="Generate a state newsletter")
     parser.add_argument("state", help="Target state")
     parser.add_argument("--month", dest="month", help="Target month YYYY-MM", required=False)
+    parser.add_argument("--test", action="store_true", help="Enable test mode with verbose logging")
     args = parser.parse_args()
 
-    report = StateNewsletterReport()
+    logging.basicConfig(level=logging.INFO if args.test else logging.WARNING)
+
+    report = StateNewsletterReport(test_mode=args.test)
     html = report.generate(args.state, args.month)
     start, _, _ = report._parse_month(args.month)
     filename = f"{args.state.lower()}_{start.strftime('%B_%Y').lower()}.html"
     outfile = report.save(html, filename)
+    report.log_summary()
     print(f"Generated {outfile}")
