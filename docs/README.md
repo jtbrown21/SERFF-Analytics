@@ -91,13 +91,19 @@ This project now includes a monthly HTML newsletter template for any U.S. state.
 python -m serff_analytics.reports.state_newsletter Illinois --month 2024-03 > reports/illinois_march_2024.html
 ```
 
+To see all database queries executed, add the `--test` flag:
+
+```bash
+python -m serff_analytics.reports.state_newsletter Illinois --month 2024-03 --test > reports/illinois_march_2024.html
+```
+
 ### Data Flow
 
 ```
 Database (DuckDB) --> state_newsletter.py --> templates/state_newsletter.html --> HTML output
 ```
 
-Reports are generated for a single state at a time. Use the optional `--month` flag to target a specific month (`YYYY-MM`). The output file name now includes the state and month for clarity.
+Reports are generated for a single state at a time. Use the optional `--month` flag to target a specific month (`YYYY-MM`). The `--test` flag enables verbose logging of queries. The output file name now includes the state and month for clarity.
 
 ## Troubleshooting
 
