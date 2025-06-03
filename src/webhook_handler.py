@@ -175,3 +175,74 @@ def test_webhook():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+@app.route('/unsubscribe', methods=['GET', 'POST'])
+def handle_unsubscribe():
+    """Handle unsubscribe requests"""
+    
+    subscriber_id = request.args.get('id')
+    token = request.args.get('token')
+    
+    if not subscriber_id or not token:
+        return "Invalid unsubscribe link", 400
+    
+    # Verify token (simple version)
+    import hashlib
+    expected_token = hashlib.md5(f"{subscriber_id}-{os.getenv('UNSUBSCRIBE_SECRET', 'default-secret')}".encode()).hexdigest()
+    
+    if token != expected_token:
+        return "Invalid unsubscribe link", 400
+    
+    # Update subscriber in Airtable
+    subscribers_table = Table(
+        os.getenv('AIRTABLE_API_KEY'),
+        os.getenv('AIRTABLE_BASE_ID'),
+        'Subscribers'
+    )
+    
+    try:
+        # Mark as inactive
+        subscribers_table.update(subscriber_id, {
+            'Active': False,
+            'Unsubscribe Date': datetime.now().isoformat(),
+            'Unsubscribe Method': 'Link Click'
+        })
+        
+        # Get subscriber info for confirmation
+        subscriber = subscribers_table.get(subscriber_id)
+        email = subscriber['fields'].get('Email', 'User')
+        
+        # Return a nice confirmation page
+        return f"""
+        <html>
+        <head>
+            <title>Unsubscribed</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }}
+                .container {{ text-align: center; }}
+                h1 {{ color: #333; }}
+                p {{ color: #666; line-height: 1.6; }}
+                .button {{ background: #0066cc; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 20px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>You've been unsubscribed</h1>
+                <p>{email} has been removed from our mailing list.</p>
+                <p>You will no longer receive insurance market updates.</p>
+                <p>If this was a mistake, please contact us to resubscribe.</p>
+                <a href="mailto:support@yourdomain.com" class="button">Contact Support</a>
+            </div>
+        </body>
+        </html>
+        """
+        
+    except Exception as e:
+        print(f"Error unsubscribing {subscriber_id}: {e}")
+        return "An error occurred. Please contact support.", 500
+
+
+@app.route('/resubscribe', methods=['POST'])
+def handle_resubscribe():
+    """Handle resubscribe requests (for future use)"""
+    # Implementation for allowing users to resubscribe
+    pass
