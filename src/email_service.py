@@ -278,10 +278,9 @@ def send_newsletter_embedded_with_subscriber_tracking(state, month, year, report
                 Subject=subject,
                 HtmlBody=personalized_html,  # <-- NOW USES PERSONALIZED VERSION
                 MessageStream='outbound',
-                Headers=[{
-                    "Name": "List-Unsubscribe",
-                    "Value": f"<https://taking-rate-postmark-webhook.onrender.com/unsubscribe?id={subscriber_id}&token={token}>"
-                }]
+               Headers={
+                        "List-Unsubscribe": f"<https://taking-rate-postmark-webhook.onrender.com/unsubscribe?id={subscriber_id}&token={token}>"
+                }
             )
             
             # Log to Emails table with linked subscriber record
