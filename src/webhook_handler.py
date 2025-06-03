@@ -171,10 +171,6 @@ def test_webhook():
         'status': 'ok',
         'message': 'Postmark webhook handler is running'
     })
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
 @app.route('/unsubscribe', methods=['GET', 'POST'])
 def handle_unsubscribe():
     """Handle unsubscribe requests"""
@@ -246,3 +242,7 @@ def handle_resubscribe():
     """Handle resubscribe requests (for future use)"""
     # Implementation for allowing users to resubscribe
     pass
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
