@@ -224,7 +224,7 @@ def handle_unsubscribe():
             <div class="container">
                 <h1>You've been unsubscribed</h1>
                 <p>{email} has been removed from our mailing list.</p>
-                <p>You will no longer receive insurance market updates.</p>
+                <p>You will no longer receive TakingRate emails.</p>
                 <p>If this was a mistake, please contact us to resubscribe.</p>
                 <a href="mailto:support@yourdomain.com" class="button">Contact Support</a>
             </div>
