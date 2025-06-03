@@ -230,6 +230,12 @@ Handles all email operations via Postmark:
 - `get_test_subscribers()` - Retrieves test subscribers for safe testing
 - Includes unsubscribe link generation
 
+### src/generate_reports.py
+Generates monthly state reports and logs them to Airtable.
+
+### src/send_reports.py
+Sends approved reports to subscribers with tracking.
+
 ### src/webhook_handler.py
 Flask application for receiving Postmark webhooks:
 - Tracks email delivery status
