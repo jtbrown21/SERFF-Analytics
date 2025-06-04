@@ -60,7 +60,7 @@ def send_approved_reports(dry_run: bool = False, test_mode: bool = True):
         filename = f"{state_abbr}_{month_num}_{year}.html"
         report_path = base_dir / state_abbr / year / month_full / filename
 
-            continue
+        continue
 
         recipients = _get_recipients(state, test_mode=test_mode)
 
