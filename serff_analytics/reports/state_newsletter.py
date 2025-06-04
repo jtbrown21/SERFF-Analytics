@@ -281,7 +281,7 @@ class StateNewsletterReport:
 
     def _market_summary(self, state: str, start: datetime, end: datetime):
         """Return summary metrics for a state within a month"""
-        query = f"""
+        query = """
             SELECT
                 COUNT(DISTINCT Company) FILTER (WHERE Premium_Change_Number > 0) AS companies,
                 ROUND(AVG(Premium_Change_Number) FILTER (WHERE Premium_Change_Number > 0) * 100, 1) AS avg_increase_pct,
@@ -289,7 +289,7 @@ class StateNewsletterReport:
             FROM filings
             WHERE State = ?
                 AND Effective_Date >= ?
-                AND Effective_Date <= ?
+                AND Effective_Date < ?  -- Changed from <= to < for consistency
         """
         conn = self._get_connection()
         try:
@@ -310,16 +310,21 @@ class StateNewsletterReport:
             return {"companies": 0, "avg_increase_pct": 0, "policies_affected": "0"}
 
         companies, avg_pct, policies = result
-        return {
-            "companies": int(companies or 0),
-            "avg_increase_pct": float(avg_pct or 0),
-            "policies_affected": format_number_short(policies or 0),
-        }
 
+        # Handle NULL values properly
+        companies = int(companies) if companies is not None else 0
+        avg_pct = float(avg_pct) if avg_pct is not None else 0.0
+        policies = int(policies) if policies is not None else 0
+
+        return {
+            "companies": companies,
+            "avg_increase_pct": avg_pct,
+            "policies_affected": format_number_short(policies),
+        }
     def _rate_cards(
         self, state: str, start: datetime, end: datetime, limit: int = 3
     ) -> Tuple[list, list]:
-        """Return top rate changes for a state and the related filing IDs."""
+        """Return top rate increases for a state and the related filing IDs."""
         query = f"""
             SELECT
                 Record_ID,
@@ -333,9 +338,11 @@ class StateNewsletterReport:
             WHERE State = ?
                 AND Effective_Date >= ?
                 AND Effective_Date < ?
-            ORDER BY Impact_Score DESC NULLS LAST, change_pct DESC
+                AND Premium_Change_Number > 0  -- Only positive rate changes
+            ORDER BY Impact_Score DESC NULLS LAST, Premium_Change_Number DESC
             LIMIT {limit}
         """
+        
         conn = self._get_connection()
         rows = self._execute_query(
             conn,
@@ -349,7 +356,8 @@ class StateNewsletterReport:
         for row in rows:
             rec_id, company, subsidiary, impact, pct, policies, eff = row
             filing_ids.append(rec_id)
-            color = "#ef4444" if (pct or 0) >= 0 else "#10b981"
+            # Since we're only showing increases, we can simplify the color logic
+            color = "#ef4444"  # Red for increases
             effective = "-"
             if eff:
                 try:

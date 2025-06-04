@@ -2,7 +2,7 @@ import duckdb
 import pandas as pd
 
 # Connect to database
-conn = duckdb.connect('data/insurance_filings.db')
+conn = duckdb.connect('serff_analytics/data/insurance_filings.db')
 
 print("=== Data Quality Check ===\n")
 
