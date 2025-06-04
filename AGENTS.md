@@ -29,6 +29,10 @@ HTML Reports (Email/Web)
    - `agent_report.py` – original report
    - `agent_report_v2.py` – added revenue focus
    - `agent_report_v3.py` – tried MJML (too complex)
+4. **Newsletter Workflow**:
+   - `src/report_manager.py` – Airtable operations for reports.
+   - `src/email_service.py` – Postmark email sending and tracking helpers.
+   - `src/webhook_handler.py` – Flask app for Postmark webhooks.
 
 ## Key Design Decisions
 1. **No AI/NLP** – direct SQL analytics is faster and more reliable
@@ -52,6 +56,7 @@ Key fields in 'filings' table:
 - `serff_analytics/reports/state_newsletter.py` generates a monthly HTML newsletter for a specific state using `templates/state_newsletter.html`.
 - Run with `python -m serff_analytics.reports.state_newsletter <State>` to produce a report file under `docs/newsletters/monthly/19.0/<STATE>/<YEAR>/<MONTH>/`.
 - Data is pulled from DuckDB via `DatabaseManager`. Ensure the database is synced before generating reports.
+- Reports are logged via `src/report_manager.py`, sent through `src/email_service.py`, and delivery events are processed by `src/webhook_handler.py`.
 
 ## Environment Setup
 - Python 3.x with a virtual environment located at `./venv`
