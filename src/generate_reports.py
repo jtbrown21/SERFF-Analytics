@@ -20,6 +20,20 @@ from serff_analytics.config import Config
 load_dotenv()
 logger = logging.getLogger(__name__)
 
+# Configure module level logging
+if not logger.handlers:
+    logger.setLevel(logging.INFO)
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(
+        logging.Formatter("%(levelname)s: %(message)s")
+    )
+    file_handler = logging.FileHandler("generate_reports.log")
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    )
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+
 
 def _state_has_activity(state: str, month: str, year: str) -> bool:
     """Return True if filings exist for this state in the given period."""
@@ -45,7 +59,7 @@ def generate_all_reports(dry_run: bool = False) -> None:
     month, year = get_current_month_year()
     manager = ReportManager()
 
-    print(f"=== Generating {month} {year} Reports ===\n")
+    logger.info("=== Generating %s %s Reports ===", month, year)
 
     generated_count = 0
 
@@ -54,15 +68,15 @@ def generate_all_reports(dry_run: bool = False) -> None:
     for state in ALL_STATES:
         existing = manager.get_report_by_state_month_year(state, month, year)
         if existing:
-            print(f"⏭️  {state}: Report already exists")
+            logger.info("⏭️  %s: Report already exists", state)
             continue
 
         if not _state_has_activity(state, month, year):
-            print(f"⏭️  {state}: No activity this month")
+            logger.info("⏭️  %s: No activity this month", state)
             continue
 
         try:
-            print(f"📄 Generating {state}...", end="", flush=True)
+            logger.info("📄 Generating %s...", state)
 
             if not dry_run:
                 state_abbr = normalize_state_abbr(state)
@@ -73,41 +87,34 @@ def generate_all_reports(dry_run: bool = False) -> None:
                 reporter = StateNewsletterReport()
                 html = reporter.generate(state, month_tag)
 
-                output_dir = base_dir / state_abbr / year / month_full
-                output_dir.mkdir(parents=True, exist_ok=True)
-                filename = f"{state_abbr}_{month_num:02d}_{year}.html"
-                output_path = output_dir / filename
-
-                with open(output_path, "w", encoding="utf-8") as f:
-                    f.write(html)
-
                 report_url = (
                     f"https://{os.getenv('GITHUB_USERNAME','USERNAME')}.github.io/"
                     f"{os.getenv('GITHUB_REPO_NAME','SERFF-Analytics')}/newsletters/"
                     f"monthly/19.0/{state_abbr}/{year}/{month_full}/{filename}"
                 )
 
-                manager.log_report(
-                    state=state,
-                    month=month,
-                    year=year,
-                    report_url=report_url,
-                    filings=reporter.last_filing_ids,
-                )
+                try:
+                    manager.log_report(
+                        state=state,
+                        month=month,
+                        year=year,
+                        report_url=report_url,
+                        filings=reporter.last_filing_ids,
+                    )
+                except Exception:
+                    logger.exception("Failed to log report for %s", state)
 
-                print(" ✓")
+                logger.info("✓ Generated %s", state)
                 generated_count += 1
             else:
-                print(" [DRY RUN]")
+                logger.info("[DRY RUN] Would generate %s", state)
 
-        except Exception as e:
-            print(f" ❌ Error: {e}")
+        except Exception:
+            logger.exception("Error generating report for %s", state)
 
-    print(f"\n✓ Generated {generated_count} reports")
+    logger.info("✓ Generated %d reports", generated_count)
 
     if generated_count > 0 and not dry_run:
-        print("\n📤 Pushing to GitHub Pages...")
-        subprocess.run(["git", "add", str(base_dir)], check=False)
         subprocess.run(["git", "commit", "-m", f"Add {month} {year} reports"], check=False)
         subprocess.run(["git", "push"], check=False)
-        print("✓ Pushed to GitHub")
+        logger.info("✓ Pushed to GitHub")
