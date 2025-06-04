@@ -176,13 +176,15 @@ This project now includes a monthly HTML newsletter template for any U.S. state.
 ### Generating a Report
 
 ```bash
-python -m serff_analytics.reports.state_newsletter Illinois --month 2024-03 > reports/illinois_march_2024.html
+python -m serff_analytics.reports.state_newsletter Illinois --month 2024-03
 ```
 
-To see all database queries executed, add the `--test` flag:
+The report is saved to `docs/reports/2024-mar/illinois.html`, committed to GitHub, and logged in Airtable.
+
+To generate without pushing or logging, add the `--test` flag:
 
 ```bash
-python -m serff_analytics.reports.state_newsletter Illinois --month 2024-03 --test > reports/illinois_march_2024.html
+python -m serff_analytics.reports.state_newsletter Illinois --month 2024-03 --test
 ```
 
 ### Newsletter Workflow Commands
