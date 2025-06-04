@@ -134,20 +134,6 @@ class AirtableSync:
         """Safely parse numeric values"""
         if pd.isna(value) or value == "" or value is None:
             return None
-        if isinstance(value, str):
-            cleaned = value.strip().replace(",", "").replace(" ", "")
-            if "%" in cleaned:
-                cleaned = cleaned.replace("%", "")
-                try:
-                    return float(cleaned) / 100.0
-                except Exception:
-                    logger.warning(f"Failed to parse percentage value '{value}'")
-                    return None
-            try:
-                return float(cleaned)
-            except Exception:
-                logger.warning(f"Failed to parse number '{value}'")
-                return None
         try:
             return float(value)
         except Exception:
