@@ -77,7 +77,13 @@ def generate_all_reports(dry_run: bool = False) -> None:
                     f"{year}-{month.lower()[:3]}/{filename}"
                 )
 
-                manager.log_report(state=state, month=month, year=year, report_url=report_url)
+                manager.log_report(
+                    state=state,
+                    month=month,
+                    year=year,
+                    report_url=report_url,
+                    filings=reporter.last_filing_ids,
+                )
 
                 print(" ✓")
                 generated_count += 1

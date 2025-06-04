@@ -18,7 +18,7 @@ class ReportManager:
             'Reports'
         )
     
-    def log_report(self, state, month, year, report_url, name=None):
+    def log_report(self, state, month, year, report_url, name=None, filings=None):
         """
         Create a new report entry in Airtable
         
@@ -28,6 +28,7 @@ class ReportManager:
             year: Year (e.g., "2024")
             report_url: GitHub Pages URL for the report
             name: Optional name/title for the report
+            filings: Optional list of filing record IDs to link
             
         Returns:
             The created Airtable record
@@ -36,14 +37,18 @@ class ReportManager:
         if not name:
             name = f"{state} {month} {year}"
         
-        record = self.table.create({
+        record_data = {
             'Name': name,
             'State': state,
             'Month': month,
             'Year': year,
             'Report URL': report_url,
             'Status': 'Generated'
-        })
+        }
+        if filings:
+            record_data['Filings'] = filings
+
+        record = self.table.create(record_data)
         
         print(f"✓ Logged {state} {month} {year} report to Airtable")
         return record
