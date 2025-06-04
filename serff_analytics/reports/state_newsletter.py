@@ -132,6 +132,7 @@ class StateNewsletterReport:
         self.template = self.env.get_template("state_newsletter.html")
         self.test_mode = test_mode
         self.test_stats = {"query_count": 0, "records": 0, "table_counts": {}}
+        self.last_filing_ids = []
         if self.test_mode:
             logger.info("[TEST MODE] Verbose database logging enabled")
 
@@ -315,21 +316,23 @@ class StateNewsletterReport:
             "policies_affected": format_number_short(policies or 0),
         }
 
-    def _rate_cards(self, state: str, start: datetime, end: datetime, limit: int = 3):
-        """Return top rate changes for a state"""
+    def _rate_cards(
+        self, state: str, start: datetime, end: datetime, limit: int = 3
+    ) -> Tuple[list, list]:
+        """Return top rate changes for a state and the related filing IDs."""
         query = f"""
             SELECT
+                Record_ID,
                 Company,
                 Subsidiary,
                 Impact_Score,
-                ROUND(MAX(Premium_Change_Number)*100,1) AS change_pct,
-                COALESCE(SUM(Policyholders_Affected_Number),0) AS policies,
-                MAX(Effective_Date) AS effective_date
+                ROUND(Premium_Change_Number * 100, 1) AS change_pct,
+                COALESCE(Policyholders_Affected_Number, 0) AS policies,
+                Effective_Date
             FROM filings
             WHERE State = ?
                 AND Effective_Date >= ?
                 AND Effective_Date < ?
-            GROUP BY Company, Subsidiary, Impact_Score
             ORDER BY Impact_Score DESC NULLS LAST, change_pct DESC
             LIMIT {limit}
         """
@@ -342,8 +345,10 @@ class StateNewsletterReport:
         )
         conn.close()
         cards = []
+        filing_ids = []
         for row in rows:
-            company, subsidiary, impact, pct, policies, eff = row
+            rec_id, company, subsidiary, impact, pct, policies, eff = row
+            filing_ids.append(rec_id)
             color = "#ef4444" if (pct or 0) >= 0 else "#10b981"
             effective = "-"
             if eff:
@@ -363,7 +368,7 @@ class StateNewsletterReport:
                     "color": color,
                 }
             )
-        return cards
+        return cards, filing_ids
 
     def _overall_stats(self):
         query = """
@@ -397,6 +402,7 @@ class StateNewsletterReport:
 
     def generate(self, state: str, month: Optional[str] = None):
         start, end, label = self._parse_month(month)
+        self.last_filing_ids = []
 
         # Check if any filings exist for the requested state and period
         conn = self._get_connection()
@@ -437,7 +443,8 @@ class StateNewsletterReport:
             "avg_increase_pct": 0,
             "policies_affected": "0",
         }
-        cards = self._rate_cards(state, start, end) or []
+        cards, filing_ids = self._rate_cards(state, start, end)
+        self.last_filing_ids = filing_ids
         stats = self._overall_stats()
         if not stats:
             stats = {
@@ -513,6 +520,7 @@ if __name__ == "__main__":
             month=start.strftime("%B"),
             year=year,
             report_url=report_url,
+            filings=report.last_filing_ids,
         )
 
         subprocess.run(["git", "add", outfile], check=False)
