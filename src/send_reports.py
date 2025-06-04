@@ -1,5 +1,7 @@
 from dotenv import load_dotenv
 import os
+from pathlib import Path
+from datetime import datetime
 from src.report_manager import ReportManager
 import logging
 from src.email_service import (
@@ -7,6 +9,8 @@ from src.email_service import (
     get_test_subscribers,
     get_subscribers_by_state,
 )
+from src.shared.utils import get_current_month_year
+from serff_analytics.reports.state_newsletter import normalize_state_abbr
 
 load_dotenv()
 logger = logging.getLogger(__name__)
