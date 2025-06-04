@@ -331,7 +331,7 @@ class StateNewsletterReport:
                 Company,
                 Subsidiary,
                 Impact_Score,
-                ROUND(Premium_Change_Number * 100, 1) AS change_pct,
+                CAST(Premium_Change_Number * 100 AS DECIMAL(10,1)) AS change_pct,
                 COALESCE(Policyholders_Affected_Number, 0) AS policies,
                 Effective_Date
             FROM filings
