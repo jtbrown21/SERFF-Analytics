@@ -8,6 +8,7 @@ The optional ``--test`` flag enables verbose logging of all SQL queries and refe
 """
 
 import os
+import subprocess
 from datetime import datetime
 import logging
 from jinja2 import Environment, FileSystemLoader
@@ -394,9 +395,9 @@ class StateNewsletterReport:
         )
         return html
 
-    def save(self, html: str, filename: str):
-        os.makedirs("reports", exist_ok=True)
-        path = os.path.join("reports", filename)
+    def save(self, html: str, filename: str, output_dir: str = "reports"):
+        os.makedirs(output_dir, exist_ok=True)
+        path = os.path.join(output_dir, filename)
         with open(path, "w") as f:
             f.write(html)
         logger.info("Report saved to %s", path)
@@ -417,7 +418,46 @@ if __name__ == "__main__":
     report = StateNewsletterReport(test_mode=args.test)
     html = report.generate(args.state, args.month)
     start, _, _ = report._parse_month(args.month)
-    filename = f"{args.state.lower()}_{start.strftime('%B_%Y').lower()}.html"
-    outfile = report.save(html, filename)
-    report.log_summary()
-    print(f"Generated {outfile}")
+    filename = f"{args.state.lower().replace(' ', '-')}.html"
+
+    if args.test:
+        output_dir = "reports"
+        outfile = report.save(html, filename, output_dir=output_dir)
+        report.log_summary()
+        print(f"Generated {outfile}")
+    else:
+        month_abbr = start.strftime("%b").lower()
+        year = start.strftime("%Y")
+        output_dir = f"docs/reports/{year}-{month_abbr}"
+        outfile = report.save(html, filename, output_dir=output_dir)
+
+        report_url = (
+            f"https://{os.getenv('GITHUB_USERNAME','USERNAME')}.github.io/"
+            f"{os.getenv('GITHUB_REPO_NAME','SERFF-Analytics')}/reports/"
+            f"{year}-{month_abbr}/{filename}"
+        )
+
+        from src.report_manager import ReportManager
+
+        manager = ReportManager()
+        manager.log_report(
+            state=args.state,
+            month=start.strftime("%B"),
+            year=year,
+            report_url=report_url,
+        )
+
+        subprocess.run(["git", "add", outfile], check=False)
+        subprocess.run(
+            [
+                "git",
+                "commit",
+                "-m",
+                f"Add {args.state} {start.strftime('%B %Y')} newsletter",
+            ],
+            check=False,
+        )
+        subprocess.run(["git", "push"], check=False)
+
+        report.log_summary()
+        print(f"Generated {outfile} and pushed to GitHub")
