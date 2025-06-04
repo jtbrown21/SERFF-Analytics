@@ -125,7 +125,7 @@ Reports are hosted on GitHub Pages for easy access:
 
 1. Enable GitHub Pages in your repository settings
 2. Set source to deploy from main branch, `/docs` folder
-3. Reports will be accessible at: `https://[username].github.io/[repo-name]/reports/`
+3. Reports will be accessible at: `https://[username].github.io/[repo-name]/newsletters/monthly/19.0/`
 
 ### Email Delivery Setup
 
@@ -179,7 +179,7 @@ This project now includes a monthly HTML newsletter template for any U.S. state.
 python -m serff_analytics.reports.state_newsletter Illinois --month 2024-03
 ```
 
-The report is saved to `docs/reports/2024-mar/illinois.html`, committed to GitHub, and logged in Airtable.
+The report is saved to `docs/newsletters/monthly/19.0/IL/2024/March/IL_03_2024.html`, committed to GitHub, and logged in Airtable.
 
 To generate without pushing or logging, add the `--test` flag:
 
