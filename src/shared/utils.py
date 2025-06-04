@@ -57,3 +57,25 @@ ALL_STATES = [
 def get_current_month_year():
     now = datetime.now()
     return now.strftime("%B"), str(now.year)
+
+
+REQUIRED_ENV_VARS = [
+    "AIRTABLE_API_KEY",
+    "AIRTABLE_BASE_ID",
+    "POSTMARK_SERVER_TOKEN",
+    "GITHUB_USERNAME",
+    "GITHUB_REPO_NAME",
+    "UNSUBSCRIBE_SECRET",
+]
+
+
+def check_required_env_vars() -> bool:
+    """Return True if all required environment variables are set."""
+    import os
+    import logging
+
+    missing = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
+    if missing:
+        logging.error("Missing required environment variables: %s", ", ".join(missing))
+        return False
+    return True

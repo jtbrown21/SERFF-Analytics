@@ -6,9 +6,14 @@ from dotenv import load_dotenv
 
 from src.generate_reports import generate_all_reports
 from src.send_reports import send_approved_reports
+from src.shared.utils import check_required_env_vars
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
+
+if not check_required_env_vars():
+    logging.error("Required environment variables not set. Aborting.")
+    sys.exit(1)
 
 
 def main():

@@ -3,11 +3,16 @@
 import logging
 import os
 import subprocess
+import sys
 from datetime import datetime
 from dotenv import load_dotenv
 
 from src.report_manager import ReportManager
-from src.shared.utils import ALL_STATES, get_current_month_year
+from src.shared.utils import (
+    ALL_STATES,
+    get_current_month_year,
+    check_required_env_vars,
+)
 from serff_analytics.reports.state_newsletter import StateNewsletterReport
 from serff_analytics.db.utils import get_month_boundaries
 from serff_analytics.db import DatabaseManager
@@ -15,6 +20,10 @@ from serff_analytics.config import Config
 
 load_dotenv()
 logger = logging.getLogger(__name__)
+
+if not check_required_env_vars():
+    logger.error("Required environment variables not set. Aborting.")
+    sys.exit(1)
 
 
 def _state_has_activity(state: str, month: str, year: str) -> bool:

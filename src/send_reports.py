@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 import os
+import sys
 from src.report_manager import ReportManager
 import logging
 from src.email_service import (
@@ -7,10 +8,17 @@ from src.email_service import (
     get_test_subscribers,
     get_subscribers_by_state,
 )
-from src.shared.utils import get_current_month_year
+from src.shared.utils import (
+    get_current_month_year,
+    check_required_env_vars,
+)
 
 load_dotenv()
 logger = logging.getLogger(__name__)
+
+if not check_required_env_vars():
+    logger.error("Required environment variables not set. Aborting.")
+    sys.exit(1)
 
 
 def _get_recipients(state: str, test_mode: bool = True):
