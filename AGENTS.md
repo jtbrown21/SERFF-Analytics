@@ -52,6 +52,12 @@ Key fields in 'filings' table:
 - `serff_analytics/reports/state_newsletter.py` generates a monthly HTML newsletter for a specific state using `templates/state_newsletter.html`.
 - Run with `python -m serff_analytics.reports.state_newsletter <State>` to produce a report file under `docs/newsletters/monthly/19.0/<STATE>/<YEAR>/<MONTH>/`.
 - Data is pulled from DuckDB via `DatabaseManager`. Ensure the database is synced before generating reports.
+- `src/monthly_workflow.py` orchestrates the entire newsletter workflow.
+- `src/generate_reports.py` builds monthly HTML reports for all active states.
+- `src/send_reports.py` delivers approved reports via email.
+- Use `python -m src.monthly_workflow generate` to create state reports.
+- Use `python -m src.monthly_workflow send` to email the approved reports.
+- These commands automate the generation and delivery of state reports.
 
 ## Environment Setup
 - Python 3.x with a virtual environment located at `./venv`
