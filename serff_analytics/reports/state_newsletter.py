@@ -11,6 +11,7 @@ import os
 import subprocess
 from datetime import datetime
 import logging
+from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 import duckdb
 from typing import Optional, Tuple
@@ -20,6 +21,68 @@ from serff_analytics.db.utils import get_month_boundaries
 from serff_analytics.config import Config
 
 logger = logging.getLogger(__name__)
+
+# Mapping of U.S. state names to their two-letter abbreviations
+STATE_ABBREVIATIONS = {
+    "ALABAMA": "AL",
+    "ALASKA": "AK",
+    "ARIZONA": "AZ",
+    "ARKANSAS": "AR",
+    "CALIFORNIA": "CA",
+    "COLORADO": "CO",
+    "CONNECTICUT": "CT",
+    "DELAWARE": "DE",
+    "GEORGIA": "GA",
+    "HAWAII": "HI",
+    "IDAHO": "ID",
+    "ILLINOIS": "IL",
+    "INDIANA": "IN",
+    "IOWA": "IA",
+    "KANSAS": "KS",
+    "KENTUCKY": "KY",
+    "LOUISIANA": "LA",
+    "MAINE": "ME",
+    "MARYLAND": "MD",
+    "MASSACHUSETTS": "MA",
+    "MICHIGAN": "MI",
+    "MINNESOTA": "MN",
+    "MISSISSIPPI": "MS",
+    "MISSOURI": "MO",
+    "MONTANA": "MT",
+    "NEBRASKA": "NE",
+    "NEVADA": "NV",
+    "NEW HAMPSHIRE": "NH",
+    "NEW JERSEY": "NJ",
+    "NEW MEXICO": "NM",
+    "NEW YORK": "NY",
+    "NORTH CAROLINA": "NC",
+    "NORTH DAKOTA": "ND",
+    "OHIO": "OH",
+    "OKLAHOMA": "OK",
+    "OREGON": "OR",
+    "PENNSYLVANIA": "PA",
+    "RHODE ISLAND": "RI",
+    "SOUTH CAROLINA": "SC",
+    "SOUTH DAKOTA": "SD",
+    "TENNESSEE": "TN",
+    "TEXAS": "TX",
+    "UTAH": "UT",
+    "VERMONT": "VT",
+    "VIRGINIA": "VA",
+    "WASHINGTON": "WA",
+    "WEST VIRGINIA": "WV",
+    "WISCONSIN": "WI",
+    "WYOMING": "WY",
+    "DISTRICT OF COLUMBIA": "DC",
+}
+
+
+def normalize_state_abbr(value: str) -> str:
+    """Return the two-letter abbreviation for a state name or abbreviation."""
+    if not value:
+        return value
+    key = value.strip().upper()
+    return STATE_ABBREVIATIONS.get(key, key[:2])
 
 
 class NoDataError(Exception):
@@ -396,12 +459,14 @@ class StateNewsletterReport:
         return html
 
     def save(self, html: str, filename: str, output_dir: str = "reports"):
-        os.makedirs(output_dir, exist_ok=True)
-        path = os.path.join(output_dir, filename)
-        with open(path, "w") as f:
+        """Write the HTML to ``filename`` within ``output_dir``."""
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        file_path = output_path / filename
+        with open(file_path, "w", encoding="utf-8") as f:
             f.write(html)
-        logger.info("Report saved to %s", path)
-        return path
+        logger.info("Report saved to %s", file_path)
+        return str(file_path)
 
 
 if __name__ == "__main__":
@@ -418,7 +483,8 @@ if __name__ == "__main__":
     report = StateNewsletterReport(test_mode=args.test)
     html = report.generate(args.state, args.month)
     start, _, _ = report._parse_month(args.month)
-    filename = f"{args.state.lower().replace(' ', '-')}.html"
+    state_abbr = normalize_state_abbr(args.state)
+    filename = f"{state_abbr}_{start.strftime('%m')}_{start.strftime('%Y')}.html"
 
     if args.test:
         output_dir = "reports"
@@ -426,15 +492,17 @@ if __name__ == "__main__":
         report.log_summary()
         print(f"Generated {outfile}")
     else:
-        month_abbr = start.strftime("%b").lower()
         year = start.strftime("%Y")
-        output_dir = f"docs/reports/{year}-{month_abbr}"
-        outfile = report.save(html, filename, output_dir=output_dir)
+        month_full = start.strftime("%B")
+        output_dir = (
+            Path("docs") / "newsletters" / "monthly" / "19.0" / state_abbr / year / month_full
+        )
+        outfile = report.save(html, filename, output_dir=str(output_dir))
 
         report_url = (
             f"https://{os.getenv('GITHUB_USERNAME','USERNAME')}.github.io/"
-            f"{os.getenv('GITHUB_REPO_NAME','SERFF-Analytics')}/reports/"
-            f"{year}-{month_abbr}/{filename}"
+            f"{os.getenv('GITHUB_REPO_NAME','SERFF-Analytics')}/newsletters/"
+            f"monthly/19.0/{state_abbr}/{year}/{month_full}/{filename}"
         )
 
         from src.report_manager import ReportManager
