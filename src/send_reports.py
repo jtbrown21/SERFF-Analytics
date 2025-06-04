@@ -1,5 +1,7 @@
 from dotenv import load_dotenv
 import os
+from pathlib import Path
+from datetime import datetime
 from src.report_manager import ReportManager
 import logging
 from src.email_service import (
@@ -8,6 +10,7 @@ from src.email_service import (
     get_subscribers_by_state,
 )
 from src.shared.utils import get_current_month_year
+from serff_analytics.reports.state_newsletter import normalize_state_abbr
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -49,18 +52,29 @@ def send_approved_reports(dry_run: bool = False, test_mode: bool = True):
 
     logger.info("Found %d approved report(s)", len(approved))
 
+    base_dir = Path(os.getenv("NEWSLETTERS_DIR", "docs/newsletters/monthly/19.0"))
+
     for report in approved:
         fields = report["fields"]
         state = fields["State"]
 
         logger.info("📧 %s:", fields["Name"])
 
-        report_path = (
-            f"docs/reports/{year}-{month.lower()[:3]}/{state.lower().replace(' ', '-')}.html"
-        )
+        state_abbr = normalize_state_abbr(state)
+        month_field = fields.get("Month", month)
+        try:
+            month_dt = datetime.strptime(month_field, "%B")
+        except ValueError:
+            try:
+                month_dt = datetime.strptime(month_field, "%b")
+            except ValueError:
+                month_dt = datetime.strptime(month_field, "%m")
 
-        if not os.path.exists(report_path):
-            logger.error("  ❌ Report file not found: %s", report_path)
+        month_num = month_dt.strftime("%m")
+        month_full = month_dt.strftime("%B")
+        filename = f"{state_abbr}_{month_num}_{year}.html"
+        report_path = base_dir / state_abbr / year / month_full / filename
+
             continue
 
         recipients = _get_recipients(state, test_mode=test_mode)
@@ -71,7 +85,7 @@ def send_approved_reports(dry_run: bool = False, test_mode: bool = True):
                     state=state,
                     month=fields["Month"],
                     year=fields["Year"],
-                    report_path=report_path,
+                    report_path=str(report_path),
                     report_record_id=report["id"],
                     test_mode=test_mode,
                 )
