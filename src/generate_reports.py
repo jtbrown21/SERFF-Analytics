@@ -8,7 +8,11 @@ from dotenv import load_dotenv
 
 from src.report_manager import ReportManager
 from src.shared.utils import ALL_STATES, get_current_month_year
-from serff_analytics.reports.state_newsletter import StateNewsletterReport
+from pathlib import Path
+from serff_analytics.reports.state_newsletter import (
+    StateNewsletterReport,
+    normalize_state_abbr,
+)
 from serff_analytics.db.utils import get_month_boundaries
 from serff_analytics.db import DatabaseManager
 from serff_analytics.config import Config
@@ -45,6 +49,8 @@ def generate_all_reports(dry_run: bool = False) -> None:
 
     generated_count = 0
 
+    base_dir = Path(os.getenv("NEWSLETTERS_DIR", "docs/newsletters/monthly/19.0"))
+
     for state in ALL_STATES:
         existing = manager.get_report_by_state_month_year(state, month, year)
         if existing:
@@ -59,22 +65,26 @@ def generate_all_reports(dry_run: bool = False) -> None:
             print(f"📄 Generating {state}...", end="", flush=True)
 
             if not dry_run:
-                output_dir = f"docs/reports/{year}-{month.lower()[:3]}"
-                os.makedirs(output_dir, exist_ok=True)
-                filename = f"{state.lower().replace(' ', '-')}.html"
-                output_path = os.path.join(output_dir, filename)
-
-                reporter = StateNewsletterReport()
+                state_abbr = normalize_state_abbr(state)
                 month_num = datetime.strptime(month, "%B").month
                 month_tag = f"{year}-{month_num:02d}"
+                month_full = datetime.strptime(month, "%B").strftime("%B")
+
+                reporter = StateNewsletterReport()
                 html = reporter.generate(state, month_tag)
+
+                output_dir = base_dir / state_abbr / year / month_full
+                output_dir.mkdir(parents=True, exist_ok=True)
+                filename = f"{state_abbr}_{month_num:02d}_{year}.html"
+                output_path = output_dir / filename
+
                 with open(output_path, "w", encoding="utf-8") as f:
                     f.write(html)
 
                 report_url = (
                     f"https://{os.getenv('GITHUB_USERNAME','USERNAME')}.github.io/"
-                    f"{os.getenv('GITHUB_REPO_NAME','SERFF-Analytics')}/reports/"
-                    f"{year}-{month.lower()[:3]}/{filename}"
+                    f"{os.getenv('GITHUB_REPO_NAME','SERFF-Analytics')}/newsletters/"
+                    f"monthly/19.0/{state_abbr}/{year}/{month_full}/{filename}"
                 )
 
                 manager.log_report(
@@ -97,7 +107,7 @@ def generate_all_reports(dry_run: bool = False) -> None:
 
     if generated_count > 0 and not dry_run:
         print("\n📤 Pushing to GitHub Pages...")
-        subprocess.run(["git", "add", "docs/reports/"], check=False)
+        subprocess.run(["git", "add", str(base_dir)], check=False)
         subprocess.run(["git", "commit", "-m", f"Add {month} {year} reports"], check=False)
         subprocess.run(["git", "push"], check=False)
         print("✓ Pushed to GitHub")
