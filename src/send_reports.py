@@ -1,6 +1,5 @@
 from dotenv import load_dotenv
 import os
-import sys
 from src.report_manager import ReportManager
 import logging
 from src.email_service import (
@@ -8,17 +7,10 @@ from src.email_service import (
     get_test_subscribers,
     get_subscribers_by_state,
 )
-from src.shared.utils import (
-    get_current_month_year,
-    check_required_env_vars,
-)
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-if not check_required_env_vars():
-    logger.error("Required environment variables not set. Aborting.")
-    sys.exit(1)
 
 
 def _get_recipients(state: str, test_mode: bool = True):
@@ -35,28 +27,39 @@ def send_approved_reports(dry_run: bool = False, test_mode: bool = True):
     month, year = get_current_month_year()
     manager = ReportManager()
 
-    print(f"=== Sending {month} {year} Approved Reports ===\n")
+    logger.info("=== Sending %s %s Approved Reports ===", month, year)
 
     approved = manager.get_approved_reports(month, year)
 
     if not approved:
-        print("❌ No approved reports found")
+        logger.error("❌ No approved reports found")
         return
 
-    print(f"Found {len(approved)} approved report(s)\n")
+    logger.info("Found %d approved report(s)", len(approved))
+
+    base_dir = Path(os.getenv("NEWSLETTERS_DIR", "docs/newsletters/monthly/19.0"))
 
     for report in approved:
         fields = report["fields"]
         state = fields["State"]
 
-        print(f"📧 {fields['Name']}:")
+        logger.info("📧 %s:", fields["Name"])
 
-        report_path = (
-            f"docs/reports/{year}-{month.lower()[:3]}/{state.lower().replace(' ', '-')}.html"
-        )
+        state_abbr = normalize_state_abbr(state)
+        month_field = fields.get("Month", month)
+        try:
+            month_dt = datetime.strptime(month_field, "%B")
+        except ValueError:
+            try:
+                month_dt = datetime.strptime(month_field, "%b")
+            except ValueError:
+                month_dt = datetime.strptime(month_field, "%m")
 
-        if not os.path.exists(report_path):
-            print(f"  ❌ Report file not found: {report_path}")
+        month_num = month_dt.strftime("%m")
+        month_full = month_dt.strftime("%B")
+        filename = f"{state_abbr}_{month_num}_{year}.html"
+        report_path = base_dir / state_abbr / year / month_full / filename
+
             continue
 
         recipients = _get_recipients(state, test_mode=test_mode)
@@ -67,7 +70,7 @@ def send_approved_reports(dry_run: bool = False, test_mode: bool = True):
                     state=state,
                     month=fields["Month"],
                     year=fields["Year"],
-                    report_path=report_path,
+                    report_path=str(report_path),
                     report_record_id=report["id"],
                     test_mode=test_mode,
                 )
@@ -75,7 +78,7 @@ def send_approved_reports(dry_run: bool = False, test_mode: bool = True):
                 manager.mark_as_sent(report["id"])
                 logging.info("Sent report for %s to %d recipients", state, len(recipients))
 
-            except Exception as e:
-                logging.error("Failed to send report for %s: %s", state, e)
+            except Exception:
+                logger.exception("Failed to send report for %s", state)
         else:
-            print(f"  [DRY RUN] Would embed and send {report_path}")
+            logger.info("  [DRY RUN] Would embed and send %s", report_path)
