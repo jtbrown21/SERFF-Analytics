@@ -72,7 +72,7 @@ tool.
    `serff_analytics/config.py` for variable names).
 2. Run the sync script to create the database and load data:
 ```bash
-python scripts/sync_demo.py
+python -m scripts/sync_demo
 ```
 Follow the prompt to run a full sync. This will initialize the database schema
 and pull all records from Airtable.
