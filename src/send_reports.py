@@ -1,7 +1,5 @@
 from dotenv import load_dotenv
 import os
-from pathlib import Path
-from datetime import datetime
 from src.report_manager import ReportManager
 import logging
 from src.email_service import (
@@ -9,23 +7,10 @@ from src.email_service import (
     get_test_subscribers,
     get_subscribers_by_state,
 )
-from src.shared.utils import get_current_month_year
-from serff_analytics.reports.state_newsletter import normalize_state_abbr
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-# Configure module level logging
-if not logger.handlers:
-    logger.setLevel(logging.INFO)
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
-    file_handler = logging.FileHandler("send_reports.log")
-    file_handler.setFormatter(
-        logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    )
-    logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
 
 
 def _get_recipients(state: str, test_mode: bool = True):

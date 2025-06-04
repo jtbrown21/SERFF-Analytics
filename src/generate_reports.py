@@ -3,37 +3,17 @@
 import logging
 import os
 import subprocess
+import sys
 from datetime import datetime
 from dotenv import load_dotenv
 
 from src.report_manager import ReportManager
-from src.shared.utils import ALL_STATES, get_current_month_year
-from pathlib import Path
-from serff_analytics.reports.state_newsletter import (
-    StateNewsletterReport,
-    normalize_state_abbr,
-)
 from serff_analytics.db.utils import get_month_boundaries
 from serff_analytics.db import DatabaseManager
 from serff_analytics.config import Config
 
 load_dotenv()
 logger = logging.getLogger(__name__)
-
-# Configure module level logging
-if not logger.handlers:
-    logger.setLevel(logging.INFO)
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(
-        logging.Formatter("%(levelname)s: %(message)s")
-    )
-    file_handler = logging.FileHandler("generate_reports.log")
-    file_handler.setFormatter(
-        logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    )
-    logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
-
 
 def _state_has_activity(state: str, month: str, year: str) -> bool:
     """Return True if filings exist for this state in the given period."""
