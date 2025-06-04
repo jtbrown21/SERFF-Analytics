@@ -73,11 +73,17 @@ def generate_all_reports(dry_run: bool = False) -> None:
                 reporter = StateNewsletterReport()
                 html = reporter.generate(state, month_tag)
 
+                filename = f"{state_abbr}_{month_num:02d}_{year}.html"
+                output_dir = base_dir / state_abbr / year / month_full
+                outfile = reporter.save(html, filename, output_dir=str(output_dir))
+
                 report_url = (
                     f"https://{os.getenv('GITHUB_USERNAME','USERNAME')}.github.io/"
                     f"{os.getenv('GITHUB_REPO_NAME','SERFF-Analytics')}/newsletters/"
                     f"monthly/19.0/{state_abbr}/{year}/{month_full}/{filename}"
                 )
+
+                subprocess.run(["git", "add", outfile], check=False)
 
                 try:
                     manager.log_report(
