@@ -86,3 +86,27 @@ def test_temp_table_removed(monkeypatch, db_path):
             "SELECT COUNT(*) FROM duckdb_tables() WHERE table_name='tmp_filings'"
         ).fetchone()[0]
         assert tmp_exists == 0
+
+
+def test_sync_temp_swap_handles_updates(monkeypatch, db_path):
+    pages = [
+        [make_record("upd", 0.1)],
+        [make_record("upd", 0.2)],
+    ]
+
+    mock_iterate = MagicMock(return_value=pages)
+    monkeypatch.setattr(Table, "iterate", mock_iterate)
+    monkeypatch.setattr(config.Config, "DB_PATH", str(db_path))
+    monkeypatch.setattr(config.Config, "AIRTABLE_API_KEY", "key")
+    monkeypatch.setattr(config.Config, "AIRTABLE_BASE_ID", "base")
+    monkeypatch.setattr(config.Config, "AIRTABLE_TABLE_NAME", "table")
+
+    sync = AirtableSync()
+    result = sync.sync_data()
+
+    assert result["records_inserted"] == 1
+    with sync.db.connection() as conn:
+        row = conn.execute(
+            "SELECT Premium_Change_Number FROM filings WHERE Record_ID='upd'"
+        ).fetchone()
+    assert float(row[0]) == pytest.approx(0.2)
