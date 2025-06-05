@@ -7,8 +7,8 @@ from src.report_manager import ReportManager
 from src.email_service import send_newsletter  # We'll create this next
 from pyairtable import Table
 
-def test_full_workflow():
-    """Test the complete workflow from generation to ready-to-send"""
+def run_workflow():
+    """Run the complete workflow from generation to ready-to-send."""
     
     print("=== Testing Complete Newsletter Workflow ===\n")
     
@@ -35,9 +35,9 @@ def test_full_workflow():
         print("  1. Go to Airtable")
         print("  2. Find the Nevada August 2024 report")
         print("  3. Change Status from 'Generated' to 'Approved'")
-        print("  4. Then run: python test_send_approved.py")
+        print("  4. Then run: python -m scripts.check_send_approved")
     else:
         print("  ❌ Nevada report not found. Run report_manager test first.")
 
 if __name__ == "__main__":
-    test_full_workflow()
+    run_workflow()

@@ -5,8 +5,8 @@ load_dotenv()
 from src.email_service import send_newsletter_embedded_with_subscriber_tracking
 from src.report_manager import ReportManager
 
-def test_subscriber_email_tracking():
-    """Test sending emails to test subscribers with tracking"""
+def run_subscriber_email_tracking():
+    """Send emails to test subscribers with tracking enabled."""
     
     # Get the Nevada report from Airtable
     manager = ReportManager()
@@ -37,4 +37,4 @@ def test_subscriber_email_tracking():
     print("3. Each email should show the subscriber name in the linked field")
 
 if __name__ == "__main__":
-    test_subscriber_email_tracking()
+    run_subscriber_email_tracking()

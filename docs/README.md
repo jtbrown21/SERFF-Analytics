@@ -191,7 +191,7 @@ python -m serff_analytics.reports.state_newsletter Illinois --month 2024-03 --te
 
 ```bash
 # Test email sending with embedded report
-python test_subscriber_tracking.py
+python -m scripts.test_subscriber_tracking
 
 # Generate reports for all states (run on 29th)
 python -m src.monthly_workflow generate
@@ -253,7 +253,7 @@ Set subscribers with Test = TRUE in Airtable to safely test the workflow without
 ### Local Testing
 ```bash
 # Test email sending
-python test_subscriber_tracking.py
+python -m scripts.test_subscriber_tracking
 
 # Test webhook handling
 python src/webhook_handler.py  # Terminal 1
