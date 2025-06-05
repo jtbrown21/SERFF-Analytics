@@ -161,6 +161,13 @@ class AirtableSync:
                 df_filtered = df[df_columns].reset_index(drop=True)
                 logger.info(f"Filtered DataFrame to columns: {df_columns}")
 
+                # Deduplicate by Record_ID to avoid primary key violations
+                pre_dedup_count = len(df_filtered)
+                df_filtered = df_filtered.drop_duplicates(subset=["Record_ID"])
+                removed_dupes = pre_dedup_count - len(df_filtered)
+                if removed_dupes:
+                    logger.warning(f"Removed {removed_dupes} duplicate Record_IDs before insert")
+
                 # Clear existing data (for initial testing)
                 conn.execute("DELETE FROM filings")
 
