@@ -163,7 +163,7 @@ class AirtableSync:
 
                 # Deduplicate by Record_ID to avoid primary key violations
                 pre_dedup_count = len(df_filtered)
-                df_filtered = df_filtered.drop_duplicates(subset=["Record_ID"])
+                df_filtered = df_filtered.drop_duplicates(subset=["Record_ID"], keep="last")
                 removed_dupes = pre_dedup_count - len(df_filtered)
                 if removed_dupes:
                     logger.warning(f"Removed {removed_dupes} duplicate Record_IDs before insert")
