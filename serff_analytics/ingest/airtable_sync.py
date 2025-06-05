@@ -168,22 +168,29 @@ class AirtableSync:
                 if removed_dupes:
                     logger.warning(f"Removed {removed_dupes} duplicate Record_IDs before insert")
 
-                # Clear existing data (for initial testing)
-                conn.execute("DELETE FROM filings")
-
-                # Insert new data in bulk using a staging relation
+                # Insert data using a temporary table swap
                 columns_str = ", ".join(df_columns)
+
+                conn.execute("CREATE TEMP TABLE tmp_filings AS SELECT * FROM filings WHERE 0")
                 conn.register("staging", df_filtered[df_columns])
                 try:
-                    insert_query = (
-                        f"INSERT INTO filings ({columns_str}) " f"SELECT {columns_str} FROM staging"
+                    insert_tmp = (
+                        f"INSERT INTO tmp_filings ({columns_str}) "
+                        f"SELECT {columns_str} FROM staging"
                     )
-                    conn.execute(insert_query)
+                    conn.execute(insert_tmp)
                     inserted = conn.execute("SELECT COUNT(*) FROM staging").fetchone()[0]
                     failed_inserts = 0
-                    logger.info(f"Inserted {inserted} records...")
+                    logger.info(f"Inserted {inserted} records into temporary table")
+
+                    conn.execute("DELETE FROM filings")
+                    conn.execute(
+                        f"INSERT INTO filings ({columns_str}) SELECT {columns_str} FROM tmp_filings"
+                    )
+                    logger.info("Temporary table swap completed; filings table replaced")
                 finally:
                     conn.unregister("staging")
+                    conn.execute("DROP TABLE tmp_filings")
 
                 # Get count
                 db_total_records = conn.execute("SELECT COUNT(*) FROM filings").fetchone()[0]

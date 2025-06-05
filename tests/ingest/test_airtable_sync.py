@@ -66,3 +66,23 @@ def test_sync_deduplicates_record_id(monkeypatch, db_path):
     with sync.db.connection() as conn:
         count = conn.execute("SELECT COUNT(*) FROM filings").fetchone()[0]
     assert count == 1
+
+
+def test_temp_table_removed(monkeypatch, db_path):
+    pages = [[make_record("t1", 0.1)]]
+
+    mock_iterate = MagicMock(return_value=pages)
+    monkeypatch.setattr(Table, "iterate", mock_iterate)
+    monkeypatch.setattr(config.Config, "DB_PATH", str(db_path))
+    monkeypatch.setattr(config.Config, "AIRTABLE_API_KEY", "key")
+    monkeypatch.setattr(config.Config, "AIRTABLE_BASE_ID", "base")
+    monkeypatch.setattr(config.Config, "AIRTABLE_TABLE_NAME", "table")
+
+    sync = AirtableSync()
+    sync.sync_data()
+
+    with sync.db.connection() as conn:
+        tmp_exists = conn.execute(
+            "SELECT COUNT(*) FROM duckdb_tables() WHERE table_name='tmp_filings'"
+        ).fetchone()[0]
+        assert tmp_exists == 0
