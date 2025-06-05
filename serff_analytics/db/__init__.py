@@ -20,24 +20,8 @@ class DatabaseManager:
     def init_database(self):
         """Initialize database with proper schema"""
         conn = self.get_connection()
-
-        # Check existing schema for column precision
-        try:
-            info = conn.execute("PRAGMA table_info('filings')").fetchall()
-            for row in info:
-                if row[1] == "Premium_Change_Number" and row[2].upper() == "DECIMAL(10,2)":
-                    # Drop dependent indexes before altering the column type
-                    conn.execute("DROP INDEX IF EXISTS idx_state_product")
-                    conn.execute("DROP INDEX IF EXISTS idx_company")
-                    conn.execute("DROP INDEX IF EXISTS idx_effective_date")
-                    conn.execute(
-                        "ALTER TABLE filings ALTER COLUMN Premium_Change_Number SET DATA TYPE DECIMAL(10,4)"
-                    )
-                    logger.info("Migrated Premium_Change_Number to DECIMAL(10,4)")
-                    break
-        except duckdb.CatalogException:
             # Table doesn't exist yet; it will be created below
-            pass
+        pass
 
         # Create main table matching your Airtable fields
         conn.execute(
