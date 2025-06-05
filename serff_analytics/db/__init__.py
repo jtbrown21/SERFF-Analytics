@@ -26,6 +26,10 @@ class DatabaseManager:
             info = conn.execute("PRAGMA table_info('filings')").fetchall()
             for row in info:
                 if row[1] == "Premium_Change_Number" and row[2].upper() == "DECIMAL(10,2)":
+                    # Drop dependent indexes before altering the column type
+                    conn.execute("DROP INDEX IF EXISTS idx_state_product")
+                    conn.execute("DROP INDEX IF EXISTS idx_company")
+                    conn.execute("DROP INDEX IF EXISTS idx_effective_date")
                     conn.execute(
                         "ALTER TABLE filings ALTER COLUMN Premium_Change_Number SET DATA TYPE DECIMAL(10,4)"
                     )
