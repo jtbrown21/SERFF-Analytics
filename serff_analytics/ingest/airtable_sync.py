@@ -146,39 +146,36 @@ class AirtableSync:
             logger.info(f"DataFrame created with {len(df)} rows and columns: {list(df.columns)}")
 
             # Load to DuckDB
-            conn = self.db.get_connection()
+            with self.db.transaction() as conn:
+                # First, let's check what columns exist in the table
+                table_info = conn.execute("PRAGMA table_info(filings)").fetchall()
+                db_columns = [col[1] for col in table_info]
+                logger.info(f"Database columns: {db_columns}")
 
-            # First, let's check what columns exist in the table
-            table_info = conn.execute("PRAGMA table_info(filings)").fetchall()
-            db_columns = [col[1] for col in table_info]
-            logger.info(f"Database columns: {db_columns}")
+                # Only keep DataFrame columns that exist in the database
+                df_columns = [col for col in df.columns if col in db_columns]
+                df_filtered = df[df_columns]
+                logger.info(f"Filtered DataFrame to columns: {df_columns}")
 
-            # Only keep DataFrame columns that exist in the database
-            df_columns = [col for col in df.columns if col in db_columns]
-            df_filtered = df[df_columns]
-            logger.info(f"Filtered DataFrame to columns: {df_columns}")
+                # Clear existing data (for initial testing)
+                conn.execute("DELETE FROM filings")
 
-            # Clear existing data (for initial testing)
-            conn.execute("DELETE FROM filings")
+                # Insert new data in bulk using a staging relation
+                columns_str = ", ".join(df_columns)
+                conn.register("staging", df_filtered[df_columns])
+                try:
+                    insert_query = (
+                        f"INSERT INTO filings ({columns_str}) " f"SELECT {columns_str} FROM staging"
+                    )
+                    conn.execute(insert_query)
+                    inserted = conn.execute("SELECT COUNT(*) FROM staging").fetchone()[0]
+                    failed_inserts = 0
+                    logger.info(f"Inserted {inserted} records...")
+                finally:
+                    conn.unregister("staging")
 
-            # Insert new data in bulk using a staging relation
-            columns_str = ", ".join(df_columns)
-            conn.register("staging", df_filtered[df_columns])
-            try:
-                insert_query = (
-                    f"INSERT INTO filings ({columns_str}) " f"SELECT {columns_str} FROM staging"
-                )
-                conn.execute(insert_query)
-                inserted = conn.execute("SELECT COUNT(*) FROM staging").fetchone()[0]
-                failed_inserts = 0
-                logger.info(f"Inserted {inserted} records...")
-            finally:
-                conn.unregister("staging")
-
-            # Get count
-            db_total_records = conn.execute("SELECT COUNT(*) FROM filings").fetchone()[0]
-
-            conn.close()
+                # Get count
+                db_total_records = conn.execute("SELECT COUNT(*) FROM filings").fetchone()[0]
 
             logger.info(f"Sync completed. Total records in database: {db_total_records}")
 
