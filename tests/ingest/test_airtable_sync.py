@@ -47,3 +47,22 @@ def test_sync_only_updated_records(monkeypatch, db_path):
     with sync.db.connection() as conn:
         count = conn.execute("SELECT COUNT(*) FROM filings").fetchone()[0]
     assert count == 2
+
+
+def test_sync_deduplicates_record_id(monkeypatch, db_path):
+    pages = [[make_record("dup", 0.1), make_record("dup", 0.1)]]
+
+    mock_iterate = MagicMock(return_value=pages)
+    monkeypatch.setattr(Table, "iterate", mock_iterate)
+    monkeypatch.setattr(config.Config, "DB_PATH", str(db_path))
+    monkeypatch.setattr(config.Config, "AIRTABLE_API_KEY", "key")
+    monkeypatch.setattr(config.Config, "AIRTABLE_BASE_ID", "base")
+    monkeypatch.setattr(config.Config, "AIRTABLE_TABLE_NAME", "table")
+
+    sync = AirtableSync()
+    result = sync.sync_data()
+
+    assert result["records_inserted"] == 1
+    with sync.db.connection() as conn:
+        count = conn.execute("SELECT COUNT(*) FROM filings").fetchone()[0]
+    assert count == 1
