@@ -282,6 +282,12 @@ Reports are automatically available when pushed to the `/docs` folder.
 ### Database Issues
 If you encounter an error like `duckdb.duckdb.IOException: IO Error: Cannot open file` when generating reports, the database file is likely missing. Run `python scripts/sync_demo.py` to create the database and pull data from Airtable.
 
+Older installations may store `Premium_Change_Number` with only two decimal places. The current schema uses four decimal places. Any script that initializes `DatabaseManager` will automatically apply the following migration:
+
+```sql
+ALTER TABLE filings ALTER COLUMN Premium_Change_Number SET DATA TYPE DECIMAL(10,4);
+```
+
 ### Email Issues
 - Check Postmark dashboard for delivery status
 - Verify sender domain is authenticated
