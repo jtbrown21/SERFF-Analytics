@@ -14,12 +14,17 @@ real_payload = {
     "MessageStream": "outbound"
 }
 
-# Test against your local webhook
-response = requests.post(
-    'http://localhost:5000/webhook/postmark',
-    json=real_payload,
-    headers={'Content-Type': 'application/json'}
-)
+def main():
+    """Send the sample payload to a local webhook for debugging."""
+    response = requests.post(
+        'http://localhost:5000/webhook/postmark',
+        json=real_payload,
+        headers={'Content-Type': 'application/json'}
+    )
 
-print(f"Response: {response.status_code}")
-print(f"Response text: {response.text}")
+    print(f"Response: {response.status_code}")
+    print(f"Response text: {response.text}")
+
+
+if __name__ == "__main__":
+    main()
