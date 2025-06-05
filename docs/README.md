@@ -64,8 +64,8 @@ UNSUBSCRIBE_SECRET=your-secret-key
 
 ### Creating or Syncing the Database
 
-The project stores data in a DuckDB file at `data/insurance_filings.db`. If the
-`data` folder is missing, it will be created automatically when you run the sync
+The project stores data in a DuckDB file at `serff_analytics/data/insurance_filings.db`. If the
+`serff_analytics/data` folder is missing, it will be created automatically when you run the sync
 tool.
 
 1. Set your Airtable credentials as environment variables (see

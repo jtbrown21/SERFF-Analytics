@@ -5,10 +5,12 @@ from datetime import datetime, timedelta
 from jinja2 import Template
 import os
 
+
 class AgentIntelligenceReportV2:
-    def __init__(self, db_path='data/insurance_filings.db'):
+    def __init__(self, db_path="serff_analytics/data/insurance_filings.db"):
         self.db_path = db_path
-        self.report_template = Template("""
+        self.report_template = Template(
+            """
 <!DOCTYPE html>
 <html>
 <head>
@@ -461,16 +463,17 @@ class AgentIntelligenceReportV2:
     </div>
 </body>
 </html>
-        """)
-    
+        """
+        )
+
     def get_connection(self):
         return duckdb.connect(self.db_path)
-    
+
     def generate_agent_report(self, agent_carrier, state, avg_premium=1200, commission_rate=0.15):
         """Generate enhanced agent report with revenue focus"""
-        
+
         conn = self.get_connection()
-        
+
         # Find exact carrier name
         carrier_search = f"""
         SELECT DISTINCT Company 
@@ -483,9 +486,9 @@ class AgentIntelligenceReportV2:
         if not carrier_result:
             conn.close()
             return None
-        
+
         exact_carrier = carrier_result[0]
-        
+
         # Get agent's rate
         agent_rate_sql = f"""
         SELECT 
@@ -498,7 +501,7 @@ class AgentIntelligenceReportV2:
         """
         agent_rate_result = conn.execute(agent_rate_sql).fetchone()
         agent_rate = agent_rate_result[0] if agent_rate_result[0] else 0
-        
+
         # Get opportunities with enhanced data
         opportunities_sql = f"""
         WITH competitor_rates AS (
@@ -536,7 +539,7 @@ class AgentIntelligenceReportV2:
         """
 
         opportunities_df = conn.execute(opportunities_sql).fetchdf()
-        
+
         # Get market position
         position_sql = f"""
         WITH carrier_rates AS (
@@ -554,125 +557,135 @@ class AgentIntelligenceReportV2:
         WHERE Company = '{exact_carrier}'
         """
         position_result = conn.execute(position_sql).fetchone()
-        market_position = position_result[0] if position_result else 'N/A'
-        
+        market_position = position_result[0] if position_result else "N/A"
+
         conn.close()
-        
+
         # Process opportunities
         top_opportunities = []
         timeline = []
         total_commission_opp = 0
         total_policies = 0
-        
+
         for _, opp in opportunities_df.iterrows():
-            policies = int(opp['policies_affected']) if pd.notna(opp['policies_affected']) else 100
-            commission_opp = int(policies * avg_premium * commission_rate * (opp['win_probability'] / 100))
+            policies = int(opp["policies_affected"]) if pd.notna(opp["policies_affected"]) else 100
+            commission_opp = int(
+                policies * avg_premium * commission_rate * (opp["win_probability"] / 100)
+            )
             total_commission_opp += commission_opp
             total_policies += policies
-            
+
             opp_data = {
-                'competitor': self._clean_company_name(opp['Company']),
-                'logo': self._get_company_logo(opp['Company']),
-                'their_rate': round(opp['avg_increase'], 1),
-                'rate_advantage': round(opp['rate_advantage'], 1),
-                'effective_date': pd.to_datetime(opp['effective_date']).strftime('%b %d'),
-                'days_until': int(opp['days_until']),
-                'win_probability': int(opp['win_probability']),
-                'policies_affected': f"{policies:,}",
-                'commission_opportunity': f"{commission_opp:,}",
-                'segments': self._get_target_segments(opp['Company'], opp['avg_increase'])
+                "competitor": self._clean_company_name(opp["Company"]),
+                "logo": self._get_company_logo(opp["Company"]),
+                "their_rate": round(opp["avg_increase"], 1),
+                "rate_advantage": round(opp["rate_advantage"], 1),
+                "effective_date": pd.to_datetime(opp["effective_date"]).strftime("%b %d"),
+                "days_until": int(opp["days_until"]),
+                "win_probability": int(opp["win_probability"]),
+                "policies_affected": f"{policies:,}",
+                "commission_opportunity": f"{commission_opp:,}",
+                "segments": self._get_target_segments(opp["Company"], opp["avg_increase"]),
             }
             top_opportunities.append(opp_data)
-            
+
             # Add to timeline
-            if opp['days_until'] <= 60:
-                timeline.append({
-                    'carrier': self._clean_company_name(opp['Company']),
-                    'date': pd.to_datetime(opp['effective_date']).strftime('%B %d'),
-                    'days_until': int(opp['days_until']),
-                    'action_window': self._get_action_window(opp['days_until'])
-                })
-        
+            if opp["days_until"] <= 60:
+                timeline.append(
+                    {
+                        "carrier": self._clean_company_name(opp["Company"]),
+                        "date": pd.to_datetime(opp["effective_date"]).strftime("%B %d"),
+                        "days_until": int(opp["days_until"]),
+                        "action_window": self._get_action_window(opp["days_until"]),
+                    }
+                )
+
         # Sort timeline
-        timeline.sort(key=lambda x: x['days_until'])
-        
+        timeline.sort(key=lambda x: x["days_until"])
+
         # Calculate summary metrics
-        avg_advantage = round(opportunities_df['rate_advantage'].mean(), 1) if len(opportunities_df) > 0 else 0
-        urgent_count = len([o for o in top_opportunities if o['days_until'] <= 30])
-        
+        avg_advantage = (
+            round(opportunities_df["rate_advantage"].mean(), 1) if len(opportunities_df) > 0 else 0
+        )
+        urgent_count = len([o for o in top_opportunities if o["days_until"] <= 30])
+
         template_data = {
-            'agent_carrier': agent_carrier,
-            'state': state,
-            'report_time': datetime.now().strftime('%I:%M %p'),
-            'total_opportunities': len(opportunities_df),
-            'potential_revenue': f"{total_commission_opp:,}",
-            'total_policies': f"{total_policies:,}",
-            'avg_premium': f"{avg_premium:,}",
-            'your_advantage': avg_advantage,
-            'urgent_count': urgent_count,
-            'market_position': market_position,
-            'win_rate': int(opportunities_df['win_probability'].mean()) if len(opportunities_df) > 0 else 0,
-            'your_rate_display': f"+{round(agent_rate, 1)}%" if agent_rate > 0 else f"{round(agent_rate, 1)}%",
-            'top_opportunities': top_opportunities[:6],  # Show top 6
-            'timeline': timeline[:5],  # Next 5 events
-            'timestamp': datetime.now().strftime('%Y-%m-%d %I:%M %p'),
-            'data_date': datetime.now().strftime('%B %d, %Y'),
-            'next_update': (datetime.now() + timedelta(days=7)).strftime('%B %d')
+            "agent_carrier": agent_carrier,
+            "state": state,
+            "report_time": datetime.now().strftime("%I:%M %p"),
+            "total_opportunities": len(opportunities_df),
+            "potential_revenue": f"{total_commission_opp:,}",
+            "total_policies": f"{total_policies:,}",
+            "avg_premium": f"{avg_premium:,}",
+            "your_advantage": avg_advantage,
+            "urgent_count": urgent_count,
+            "market_position": market_position,
+            "win_rate": (
+                int(opportunities_df["win_probability"].mean()) if len(opportunities_df) > 0 else 0
+            ),
+            "your_rate_display": (
+                f"+{round(agent_rate, 1)}%" if agent_rate > 0 else f"{round(agent_rate, 1)}%"
+            ),
+            "top_opportunities": top_opportunities[:6],  # Show top 6
+            "timeline": timeline[:5],  # Next 5 events
+            "timestamp": datetime.now().strftime("%Y-%m-%d %I:%M %p"),
+            "data_date": datetime.now().strftime("%B %d, %Y"),
+            "next_update": (datetime.now() + timedelta(days=7)).strftime("%B %d"),
         }
-        
+
         return self.report_template.render(**template_data)
-    
+
     def _clean_company_name(self, name):
         """Clean and shorten company names"""
         # Common replacements
         replacements = {
-            'InsuranceCompany': ' Insurance',
-            'MutualAutomobile': ' Mutual Auto',
-            'andCasualty': ' & Casualty',
-            'InsuranceCompany': ' Insurance',
-            'Fire and': 'Fire &'
+            "InsuranceCompany": " Insurance",
+            "MutualAutomobile": " Mutual Auto",
+            "andCasualty": " & Casualty",
+            "InsuranceCompany": " Insurance",
+            "Fire and": "Fire &",
         }
-        
+
         for old, new in replacements.items():
             name = name.replace(old, new)
-        
+
         # Shorten long names
-        if 'State Farm' in name:
-            return 'State Farm'
-        elif 'Progressive' in name:
-            return 'Progressive'
-        elif 'Allstate' in name:
-            return 'Allstate'
-        elif 'Geico' in name or 'GEICO' in name:
-            return 'GEICO'
-        elif 'Farmers' in name:
-            return 'Farmers'
-        elif 'Liberty Mutual' in name:
-            return 'Liberty Mutual'
-        
+        if "State Farm" in name:
+            return "State Farm"
+        elif "Progressive" in name:
+            return "Progressive"
+        elif "Allstate" in name:
+            return "Allstate"
+        elif "Geico" in name or "GEICO" in name:
+            return "GEICO"
+        elif "Farmers" in name:
+            return "Farmers"
+        elif "Liberty Mutual" in name:
+            return "Liberty Mutual"
+
         # Truncate if still too long
         if len(name) > 25:
-            name = name[:22] + '...'
-        
+            name = name[:22] + "..."
+
         return name.strip()
-    
+
     def _get_company_logo(self, company):
         """Get logo/initial for company"""
         name = self._clean_company_name(company)
-        
+
         # Return first 2-3 characters
-        if 'State Farm' in name:
-            return 'SF'
-        elif 'Progressive' in name:
-            return 'PG'
-        elif 'Allstate' in name:
-            return 'AS'
-        elif 'GEICO' in name:
-            return 'GE'
-        elif 'Farmers' in name:
-            return 'FM'
-        elif 'Liberty' in name:
-            return 'LM'
+        if "State Farm" in name:
+            return "SF"
+        elif "Progressive" in name:
+            return "PG"
+        elif "Allstate" in name:
+            return "AS"
+        elif "GEICO" in name:
+            return "GE"
+        elif "Farmers" in name:
+            return "FM"
+        elif "Liberty" in name:
+            return "LM"
         else:
             # Return first 2 letters
             words = name.split()
@@ -680,11 +693,11 @@ class AgentIntelligenceReportV2:
                 return words[0][0] + words[1][0]
             else:
                 return name[:2].upper()
-    
+
     def _get_target_segments(self, company, rate_increase):
         """Determine best customer segments to target"""
         segments = []
-        
+
         # Base segments
         if rate_increase > 10:
             segments.append("Multi-car households")
@@ -694,17 +707,17 @@ class AgentIntelligenceReportV2:
             segments.append("Bundle opportunities")
         if rate_increase > 5:
             segments.append("Price-sensitive")
-        
+
         # Company-specific
-        if 'State Farm' in company:
+        if "State Farm" in company:
             segments.append("Loyalty seekers")
-        elif 'Progressive' in company:
+        elif "Progressive" in company:
             segments.append("Tech-savvy")
-        elif 'Allstate' in company:
+        elif "Allstate" in company:
             segments.append("Full coverage")
-            
+
         return segments[:3]  # Top 3
-    
+
     def _get_action_window(self, days_until):
         """Get recommended action window"""
         if days_until <= 30:
@@ -715,44 +728,46 @@ class AgentIntelligenceReportV2:
             return "Early outreach - build awareness"
         else:
             return "Plan campaign - prepare materials"
-    
+
     def save_report(self, html_content, filename=None):
         """Save report to file"""
         if filename is None:
             filename = f"agent_action_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
-        
-        os.makedirs('reports', exist_ok=True)
-        filepath = os.path.join('reports', filename)
-        
-        with open(filepath, 'w') as f:
+
+        os.makedirs("reports", exist_ok=True)
+        filepath = os.path.join("reports", filename)
+
+        with open(filepath, "w") as f:
             f.write(html_content)
-        
+
         return filepath
+
 
 # Generate V2 reports
 if __name__ == "__main__":
     generator = AgentIntelligenceReportV2()
-    
+
     # Test scenarios
     test_scenarios = [
         ("State Farm", "Arizona"),
         ("Allstate", "Illinois"),
     ]
-    
+
     for carrier, state in test_scenarios:
         print(f"\nGenerating V2 report for {carrier} agent in {state}...")
-        
+
         html = generator.generate_agent_report(carrier, state)
         if html:
             filepath = generator.save_report(
-                html, 
-                f"agent_action_v2_{carrier.lower().replace(' ', '_')}_{state.lower()}_{datetime.now().strftime('%Y%m%d')}.html"
+                html,
+                f"agent_action_v2_{carrier.lower().replace(' ', '_')}_{state.lower()}_{datetime.now().strftime('%Y%m%d')}.html",
             )
             print(f"✅ V2 Report saved: {filepath}")
-            
+
             # Open the first one
             if carrier == "State Farm":
                 import webbrowser
+
                 webbrowser.open(f"file://{os.path.abspath(filepath)}")
         else:
             print(f"❌ No data found for {carrier} in {state}")

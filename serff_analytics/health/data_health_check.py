@@ -15,7 +15,7 @@ class SimpleDataHealthCheck:
     District of Columbia is also ignored when calculating coverage.
     """
 
-    def __init__(self, db_path="data/insurance_filings.db"):
+    def __init__(self, db_path="serff_analytics/data/insurance_filings.db"):
         self.db_path = db_path
         # All US states that should have insurance filings
         # NOTE: Florida (FL) excluded - no FL data currently available
@@ -400,7 +400,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--db-path",
         dest="db_path",
-        default="data/insurance_filings.db",
+        default="serff_analytics/data/insurance_filings.db",
         help="Path to DuckDB database",
     )
     parser.add_argument("--year", type=int, help="Limit checks to a single year", required=False)

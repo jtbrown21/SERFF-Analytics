@@ -23,7 +23,7 @@
 - `pandas` 2.2.0
 
 ### Input/Output
-- Input: DuckDB database `data/insurance_filings.db` and optional in-memory data structures.
+- Input: DuckDB database `serff_analytics/data/insurance_filings.db` and optional in-memory data structures.
 - Output: Lists of missing states, pandas DataFrames of duplicates/overview, and console summaries.
 
 ## 2. Code Quality Assessment

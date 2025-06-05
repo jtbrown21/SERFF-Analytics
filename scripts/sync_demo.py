@@ -37,7 +37,7 @@ def run_sync():
         print(f"Total in database: {result['total_records']}")
         
         # Show sample data
-        conn = duckdb.connect('data/insurance_filings.db')
+        conn = duckdb.connect('serff_analytics/data/insurance_filings.db')
         print("\nSample data:")
         sample = conn.execute("SELECT Company, State, Premium_Change_Number FROM filings LIMIT 5").fetchdf()
         print(sample)

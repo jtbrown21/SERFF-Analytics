@@ -5,17 +5,18 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class InsuranceAnalytics:
-    def __init__(self, db_path='data/insurance_filings.db'):
+    def __init__(self, db_path="serff_analytics/data/insurance_filings.db"):
         self.db_path = db_path
-    
+
     def get_connection(self):
         return duckdb.connect(self.db_path)
-    
+
     def market_overview(self, months_back=12):
         """Get comprehensive market overview"""
         conn = self.get_connection()
-        
+
         # Overall statistics
         overview_sql = f"""
         WITH recent_filings AS (
@@ -36,15 +37,15 @@ class InsuranceAnalytics:
             ROUND(MIN(Premium_Change_Number) * 100, 2) as max_decrease_pct
         FROM recent_filings
         """
-        
+
         overview = conn.execute(overview_sql).fetchdf()
         conn.close()
         return overview
-    
+
     def state_analysis(self, months_back=12):
         """Analyze rate changes by state"""
         conn = self.get_connection()
-        
+
         state_sql = f"""
         WITH recent_filings AS (
             SELECT * FROM filings 
@@ -66,15 +67,15 @@ class InsuranceAnalytics:
         GROUP BY State
         ORDER BY filing_count DESC
         """
-        
+
         results = conn.execute(state_sql).fetchdf()
         conn.close()
         return results
-    
+
     def company_rankings(self, months_back=12):
         """Rank companies by various metrics"""
         conn = self.get_connection()
-        
+
         company_sql = f"""
         WITH recent_filings AS (
             SELECT * FROM filings 
@@ -99,15 +100,15 @@ class InsuranceAnalytics:
         WHERE filing_count >= 5  -- Only companies with meaningful activity
         ORDER BY avg_increase_pct DESC
         """
-        
+
         results = conn.execute(company_sql).fetchdf()
         conn.close()
         return results
-    
+
     def hot_zones_analysis(self):
         """Identify 'hot zones' - state/company combinations with aggressive rate increases"""
         conn = self.get_connection()
-        
+
         hot_zones_sql = """
         WITH recent_filings AS (
             SELECT * FROM filings 
@@ -133,15 +134,15 @@ class InsuranceAnalytics:
         ORDER BY avg_increase_pct DESC
         LIMIT 20
         """
-        
+
         results = conn.execute(hot_zones_sql).fetchdf()
         conn.close()
         return results
-    
+
     def trend_analysis(self):
         """Analyze trends over time"""
         conn = self.get_connection()
-        
+
         trend_sql = """
         WITH monthly_stats AS (
             SELECT 
@@ -169,15 +170,15 @@ class InsuranceAnalytics:
         FROM monthly_stats
         ORDER BY month
         """
-        
+
         results = conn.execute(trend_sql).fetchdf()
         conn.close()
         return results
-    
+
     def outlier_filings(self, threshold_pct=15):
         """Find extreme rate changes that might need attention"""
         conn = self.get_connection()
-        
+
         outlier_sql = f"""
         SELECT 
             Company,
@@ -197,15 +198,15 @@ class InsuranceAnalytics:
         ORDER BY ABS(Premium_Change_Number) DESC
         LIMIT 50
         """
-        
+
         results = conn.execute(outlier_sql).fetchdf()
         conn.close()
         return results
-    
+
     def competitive_positioning(self, company_name):
         """See how a company compares to market"""
         conn = self.get_connection()
-        
+
         # First, find exact company name
         company_search = f"""
         SELECT DISTINCT Company 
@@ -214,13 +215,13 @@ class InsuranceAnalytics:
         LIMIT 5
         """
         companies = conn.execute(company_search).fetchdf()
-        
+
         if companies.empty:
             conn.close()
             return pd.DataFrame()
-        
-        exact_company = companies.iloc[0]['Company']
-        
+
+        exact_company = companies.iloc[0]["Company"]
+
         positioning_sql = f"""
         WITH market_stats AS (
             SELECT 
@@ -263,23 +264,24 @@ class InsuranceAnalytics:
         JOIN market_stats m ON c.State = m.State AND c.Product_Line = m.Product_Line
         ORDER BY c.filing_count DESC
         """
-        
+
         results = conn.execute(positioning_sql).fetchdf()
         conn.close()
         return results
 
+
 # Test the analytics
 if __name__ == "__main__":
     analytics = InsuranceAnalytics()
-    
+
     print("=== MARKET OVERVIEW ===")
     print(analytics.market_overview())
-    
+
     print("\n=== TOP STATES BY ACTIVITY ===")
     print(analytics.state_analysis().head(10))
-    
+
     print("\n=== COMPANY RANKINGS ===")
     print(analytics.company_rankings().head(10))
-    
+
     print("\n=== HOT ZONES ===")
     print(analytics.hot_zones_analysis())

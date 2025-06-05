@@ -4,10 +4,12 @@ from datetime import datetime, timedelta
 from jinja2 import Template
 import os
 
+
 class AgentIntelligenceReport:
-    def __init__(self, db_path='data/insurance_filings.db'):
+    def __init__(self, db_path="serff_analytics/data/insurance_filings.db"):
         self.db_path = db_path
-        self.report_template = Template("""
+        self.report_template = Template(
+            """
 <!DOCTYPE html>
 <html>
 <head>
@@ -401,17 +403,18 @@ class AgentIntelligenceReport:
     </div>
 </body>
 </html>
-        """)
-    
+        """
+        )
+
     def get_connection(self):
         return duckdb.connect(self.db_path)
-    
+
     def generate_agent_report(self, agent_carrier, state, months_back=6):
         """Generate competitive intelligence report for an agent"""
-        
+
         # Get agent's carrier rate
         conn = self.get_connection()
-        
+
         # Find exact carrier name
         carrier_search = f"""
         SELECT DISTINCT Company 
@@ -424,9 +427,9 @@ class AgentIntelligenceReport:
         if not carrier_result:
             conn.close()
             return None
-            
+
         exact_carrier = carrier_result[0]
-        
+
         # Get agent's recent rate change
         agent_rate_sql = f"""
         SELECT 
@@ -440,7 +443,7 @@ class AgentIntelligenceReport:
         """
         agent_rate_result = conn.execute(agent_rate_sql).fetchone()
         agent_rate = agent_rate_result[0] if agent_rate_result[0] else 0
-        
+
         # Get competitor opportunities
         opportunities_sql = f"""
         WITH recent_filings AS (
@@ -474,9 +477,9 @@ class AgentIntelligenceReport:
         ORDER BY rate_advantage DESC, avg_impact_score DESC
         LIMIT 10
         """
-        
+
         opportunities_df = conn.execute(opportunities_sql).fetchdf()
-        
+
         # Get market summary
         market_summary_sql = f"""
         SELECT 
@@ -489,7 +492,7 @@ class AgentIntelligenceReport:
         AND Effective_Date >= CURRENT_DATE - INTERVAL '{months_back} months'
         """
         market_summary = conn.execute(market_summary_sql).fetchone()
-        
+
         # Get agent's market position
         position_sql = f"""
         WITH carrier_rates AS (
@@ -514,120 +517,138 @@ class AgentIntelligenceReport:
         WHERE Company = '{exact_carrier}'
         """
         position_result = conn.execute(position_sql).fetchone()
-        agent_position = position_result[0] if position_result else 'N/A'
-        
+        agent_position = position_result[0] if position_result else "N/A"
+
         conn.close()
-        
-      # Build template data
+
+        # Build template data
         opportunities = []
         urgent = []
         timeline = []
 
         for _, opp in opportunities_df.iterrows():
             opp_data = {
-                'competitor': self._clean_company_name(opp['Company']),
-                'their_increase': round(opp['avg_increase'], 1),
-                'advantage': round(opp['rate_advantage'], 1),
-                'effective_date': pd.to_datetime(opp['effective_date']).strftime('%B %d, %Y') if pd.notna(opp['effective_date']) else 'TBD',
-                'impact_score': None,  # or int(opp['avg_impact_score']) if you have it
-                'policies_affected': f"{int(opp['policies_affected']):,}" if pd.notna(opp['policies_affected']) else None,
-                'product_line': opp['product_lines'],
-                'last_increase_date': pd.to_datetime(opp['last_increase_date']).strftime('%B %Y') if pd.notna(opp['last_increase_date']) else None,
-                'last_increase': f"+{opp['last_increase']}%" if pd.notna(opp['last_increase']) else None
+                "competitor": self._clean_company_name(opp["Company"]),
+                "their_increase": round(opp["avg_increase"], 1),
+                "advantage": round(opp["rate_advantage"], 1),
+                "effective_date": (
+                    pd.to_datetime(opp["effective_date"]).strftime("%B %d, %Y")
+                    if pd.notna(opp["effective_date"])
+                    else "TBD"
+                ),
+                "impact_score": None,  # or int(opp['avg_impact_score']) if you have it
+                "policies_affected": (
+                    f"{int(opp['policies_affected']):,}"
+                    if pd.notna(opp["policies_affected"])
+                    else None
+                ),
+                "product_line": opp["product_lines"],
+                "last_increase_date": (
+                    pd.to_datetime(opp["last_increase_date"]).strftime("%B %Y")
+                    if pd.notna(opp["last_increase_date"])
+                    else None
+                ),
+                "last_increase": (
+                    f"+{opp['last_increase']}%" if pd.notna(opp["last_increase"]) else None
+                ),
             }
             opportunities.append(opp_data)
 
             # Check if urgent (effective within 60 days)
-            if pd.notna(opp['effective_date']):
-                days_until = (pd.to_datetime(opp['effective_date']) - pd.Timestamp.now()).days
+            if pd.notna(opp["effective_date"]):
+                days_until = (pd.to_datetime(opp["effective_date"]) - pd.Timestamp.now()).days
                 if 0 < days_until <= 60:
                     urgent.append(opp_data)
 
                 # Add to timeline
-                timeline.append({
-                    'date': pd.to_datetime(opp['effective_date']).strftime('%b %d'),
-                    'carrier': self._clean_company_name(opp['Company']),
-                    'days_until': days_until
-                })
+                timeline.append(
+                    {
+                        "date": pd.to_datetime(opp["effective_date"]).strftime("%b %d"),
+                        "carrier": self._clean_company_name(opp["Company"]),
+                        "days_until": days_until,
+                    }
+                )
 
         # Sort timeline by date
-        timeline.sort(key=lambda x: x['days_until'])
+        timeline.sort(key=lambda x: x["days_until"])
 
         template_data = {
-            'agent_carrier': agent_carrier,
-            'state': state,
-            'report_date': datetime.now().strftime('%B %d, %Y'),
-            'total_filings': market_summary[2],
-            'urgent_opportunities': urgent,
-            'opportunities': opportunities[:5],  # Top 5
-            'your_position': f"#{agent_position}",
-            'total_carriers': market_summary[0],
-            'winback_count': len(opportunities),
-            'avg_competitor_increase': round(market_summary[1], 1) if market_summary[1] else 0,
-            'your_rate_change': f"+{round(agent_rate, 1)}" if agent_rate > 0 else round(agent_rate, 1),
-            'your_rate_display': f"+{round(agent_rate, 1)}%" if agent_rate > 0 else f"{round(agent_rate, 1)}%",
-            'market_direction': "Hardening (Rates Rising)" if market_summary[1] > 5 else "Stable",
-            'most_aggressive': opportunities[0]['competitor'] if opportunities else 'N/A',
-            'total_policies_affected': f"{int(market_summary[3]):,}" if market_summary[3] else None,
-            'timeline': timeline[:5],  # Next 5 effective dates
-            'timestamp': datetime.now().strftime('%I:%M %p %Z'),
-            'data_freshness': datetime.now().strftime('%B %d, %Y'),
-            'next_update': (datetime.now() + timedelta(days=7)).strftime('%B %d, %Y')
+            "agent_carrier": agent_carrier,
+            "state": state,
+            "report_date": datetime.now().strftime("%B %d, %Y"),
+            "total_filings": market_summary[2],
+            "urgent_opportunities": urgent,
+            "opportunities": opportunities[:5],  # Top 5
+            "your_position": f"#{agent_position}",
+            "total_carriers": market_summary[0],
+            "winback_count": len(opportunities),
+            "avg_competitor_increase": round(market_summary[1], 1) if market_summary[1] else 0,
+            "your_rate_change": (
+                f"+{round(agent_rate, 1)}" if agent_rate > 0 else round(agent_rate, 1)
+            ),
+            "your_rate_display": (
+                f"+{round(agent_rate, 1)}%" if agent_rate > 0 else f"{round(agent_rate, 1)}%"
+            ),
+            "market_direction": "Hardening (Rates Rising)" if market_summary[1] > 5 else "Stable",
+            "most_aggressive": opportunities[0]["competitor"] if opportunities else "N/A",
+            "total_policies_affected": f"{int(market_summary[3]):,}" if market_summary[3] else None,
+            "timeline": timeline[:5],  # Next 5 effective dates
+            "timestamp": datetime.now().strftime("%I:%M %p %Z"),
+            "data_freshness": datetime.now().strftime("%B %d, %Y"),
+            "next_update": (datetime.now() + timedelta(days=7)).strftime("%B %d, %Y"),
         }
         return self.report_template.render(**template_data)
-    
+
     def _clean_company_name(self, name):
         """Clean up company names for display"""
         # Fix spacing issues
-        name = name.replace('InsuranceCompany', ' Insurance Company')
-        name = name.replace('MutualAutomobile', ' Mutual Automobile')
-        name = name.replace('andCasualty', ' and Casualty')
-        name = name.replace('InsuranceCompany', ' Insurance Company')
-        
+        name = name.replace("InsuranceCompany", " Insurance Company")
+        name = name.replace("MutualAutomobile", " Mutual Automobile")
+        name = name.replace("andCasualty", " and Casualty")
+        name = name.replace("InsuranceCompany", " Insurance Company")
+
         # Truncate if too long
         if len(name) > 40:
-            name = name[:37] + '...'
-        
+            name = name[:37] + "..."
+
         return name.strip()
-    
+
     def save_report(self, html_content, filename=None):
         """Save report to file"""
         if filename is None:
             filename = f"agent_intel_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
-        
-        os.makedirs('reports', exist_ok=True)
-        filepath = os.path.join('reports', filename)
-        
-        with open(filepath, 'w') as f:
+
+        os.makedirs("reports", exist_ok=True)
+        filepath = os.path.join("reports", filename)
+
+        with open(filepath, "w") as f:
             f.write(html_content)
-        
+
         return filepath
+
 
 # Generate sample reports
 if __name__ == "__main__":
     generator = AgentIntelligenceReport()
-    
+
     # Generate reports for different scenarios
-    test_scenarios = [
-        ("State Farm", "Arizona"),
-        ("Allstate", "Illinois"),
-        ("Progressive", "Texas")
-    ]
-    
+    test_scenarios = [("State Farm", "Arizona"), ("Allstate", "Illinois"), ("Progressive", "Texas")]
+
     for carrier, state in test_scenarios:
         print(f"\nGenerating report for {carrier} agent in {state}...")
-        
+
         html = generator.generate_agent_report(carrier, state)
         if html:
             filepath = generator.save_report(
-                html, 
-                f"agent_intel_{carrier.lower().replace(' ', '_')}_{state.lower()}_{datetime.now().strftime('%Y%m%d')}.html"
+                html,
+                f"agent_intel_{carrier.lower().replace(' ', '_')}_{state.lower()}_{datetime.now().strftime('%Y%m%d')}.html",
             )
             print(f"✅ Report saved: {filepath}")
-            
+
             # Open the first one in browser
             if carrier == "State Farm":
                 import webbrowser
+
                 webbrowser.open(f"file://{os.path.abspath(filepath)}")
         else:
             print(f"❌ No data found for {carrier} in {state}")
