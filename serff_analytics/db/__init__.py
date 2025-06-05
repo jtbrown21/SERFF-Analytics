@@ -55,7 +55,8 @@ class DatabaseManager:
     def init_database(self):
         """Initialize database with proper schema"""
         try:
-            info = self.execute("PRAGMA table_info('filings')").fetchall()
+            with self.connection() as conn:
+                info = conn.execute("PRAGMA table_info('filings')").fetchall()
             for row in info:
                 if row[1] == "Premium_Change_Number" and row[2].upper() == "DECIMAL(10,2)":
                     # Drop dependent indexes before altering the column type
