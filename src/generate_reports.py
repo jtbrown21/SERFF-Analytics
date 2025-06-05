@@ -21,19 +21,19 @@ from serff_analytics.config import Config
 load_dotenv()
 logger = logging.getLogger(__name__)
 
+
 def _state_has_activity(state: str, month: str, year: str) -> bool:
     """Return True if filings exist for this state in the given period."""
     try:
         db = DatabaseManager(Config.DB_PATH)
-        conn = db.get_connection()
         month_num = datetime.strptime(month, "%B").month
         start, end = get_month_boundaries(int(year), month_num)
         query = (
             "SELECT COUNT(*) FROM filings "
             "WHERE State = ? AND Effective_Date >= ? AND Effective_Date <= ?"
         )
-        count = conn.execute(query, [state, start.isoformat(), end.isoformat()]).fetchone()[0]
-        conn.close()
+        with db.connection() as conn:
+            count = conn.execute(query, [state, start.isoformat(), end.isoformat()]).fetchone()[0]
         return count > 0
     except Exception as exc:
         logger.error("Activity check failed for %s: %s", state, exc)
