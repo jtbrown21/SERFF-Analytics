@@ -13,11 +13,22 @@ logger = logging.getLogger(__name__)
 class AirtableSync:
     def __init__(self):
         self.table = Table(
-            Config.AIRTABLE_API_KEY, Config.AIRTABLE_BASE_ID, Config.AIRTABLE_TABLE_NAME
+            Config.AIRTABLE_API_KEY,
+            Config.AIRTABLE_BASE_ID,
+            Config.AIRTABLE_TABLE_NAME,
         )
         self.db = DatabaseManager(Config.DB_PATH)
 
-    def sync_data(self):
+    def _fetch_records(self, since: datetime | None = None):
+        """Stream records from Airtable page by page."""
+        params: dict[str, str] = {}
+        if since:
+            params["filter_by_formula"] = f"LAST_MODIFIED_TIME() > '{since.isoformat()}'"
+
+        for page in self.table.iterate(page_size=100, **params):
+            yield page
+
+    def sync_data(self, since: datetime | None = None):
         """Sync data from Airtable to DuckDB"""
         try:
             logger.info("Starting Airtable sync...")
@@ -26,9 +37,11 @@ class AirtableSync:
             # self.diagnose_rate_change_field()
             # self.debug_field_values("Overall Rate Change Number")
 
-            # Fetch all records
-            records = self.table.all()
-            logger.info(f"Fetched {len(records)} records from Airtable")
+            # Fetch records, optionally filtered by last modified time
+            pages = list(self._fetch_records(since))
+            fetched_count = sum(len(p) for p in pages)
+            logger.info(f"Fetched {fetched_count} records from Airtable")
+            records = [r for page in pages for r in page]
 
             # Convert to DataFrame
             data = []
@@ -142,18 +155,18 @@ class AirtableSync:
                 conn.unregister("staging")
 
             # Get count
-            total_records = conn.execute("SELECT COUNT(*) FROM filings").fetchone()[0]
+            db_total_records = conn.execute("SELECT COUNT(*) FROM filings").fetchone()[0]
 
             conn.close()
 
-            logger.info(f"Sync completed. Total records in database: {total_records}")
+            logger.info(f"Sync completed. Total records in database: {db_total_records}")
 
             # Summary report
             result = {
                 "success": True,
                 "records_processed": len(df),
                 "records_inserted": inserted,
-                "total_records": total_records,
+                "total_records": db_total_records,
                 "parsing_errors": len(parsing_errors),
                 "failed_inserts": failed_inserts,
             }
