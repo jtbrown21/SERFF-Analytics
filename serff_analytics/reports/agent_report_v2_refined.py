@@ -5,10 +5,12 @@ from datetime import datetime, timedelta
 from jinja2 import Template
 import os
 
+
 class AgentIntelligenceReportV2Refined:
-    def __init__(self, db_path='data/insurance_filings.db'):
+    def __init__(self, db_path="serff_analytics/data/insurance_filings.db"):
         self.db_path = db_path
-        self.report_template = Template("""
+        self.report_template = Template(
+            """
 <!DOCTYPE html>
 <html>
 <head>
@@ -541,16 +543,17 @@ class AgentIntelligenceReportV2Refined:
     </script>
 </body>
 </html>
-        """)
-    
+        """
+        )
+
     def get_connection(self):
         return duckdb.connect(self.db_path)
-    
+
     def generate_agent_report(self, agent_carrier, state, avg_premium=1200):
         """Generate simplified agent report focused on competitor rate increases"""
-        
+
         conn = self.get_connection()
-        
+
         # Get competitor rate increases
         opportunities_sql = f"""
         WITH recent_increases AS (
@@ -577,9 +580,9 @@ class AgentIntelligenceReportV2Refined:
         ORDER BY days_until ASC, avg_increase DESC
         LIMIT 15
         """
-        
+
         opportunities_df = conn.execute(opportunities_sql).fetchdf()
-        
+
         # Get summary statistics
         summary_sql = f"""
         SELECT 
@@ -594,135 +597,141 @@ class AgentIntelligenceReportV2Refined:
         AND Effective_Date >= CURRENT_DATE - INTERVAL '30 days'
         AND Effective_Date <= CURRENT_DATE + INTERVAL '90 days'
         """
-        
+
         summary = conn.execute(summary_sql).fetchone()
-        
+
         conn.close()
-        
+
         # Process opportunities
         opportunities = []
         timeline = []
         urgent_count = 0
         product_set = set()
-        
-        for _, opp in opportunities_df.iterrows():
-            if opp['days_until'] <= 30:
-                urgent_count += 1
-            
-            # Clean up product lines
-            product_lines = opp['product_lines'] if pd.notna(opp['product_lines']) else 'Auto'
-            if len(product_lines) > 30:
-                product_lines = product_lines[:27] + '...'
-            product_set.update([p.strip() for p in product_lines.split(',')])
 
-            urgency_percent = max(0, (90 - opp['days_until']) / 90 * 100)
-            urgency_color = '#dc2626' if opp['days_until'] <= 30 else '#10b981'
-            recent_changes = opp['recent_changes'] if isinstance(opp['recent_changes'], list) else []
-            
+        for _, opp in opportunities_df.iterrows():
+            if opp["days_until"] <= 30:
+                urgent_count += 1
+
+            # Clean up product lines
+            product_lines = opp["product_lines"] if pd.notna(opp["product_lines"]) else "Auto"
+            if len(product_lines) > 30:
+                product_lines = product_lines[:27] + "..."
+            product_set.update([p.strip() for p in product_lines.split(",")])
+
+            urgency_percent = max(0, (90 - opp["days_until"]) / 90 * 100)
+            urgency_color = "#dc2626" if opp["days_until"] <= 30 else "#10b981"
+            recent_changes = (
+                opp["recent_changes"] if isinstance(opp["recent_changes"], list) else []
+            )
+
             opp_data = {
-                'competitor': self._clean_company_name(opp['Company']),
-                'rate_increase': round(opp['avg_increase'], 1),
-                'effective_date': pd.to_datetime(opp['effective_date']).strftime('%B %d, %Y'),
-                'days_until': int(opp['days_until']) if opp['days_until'] >= 0 else 0,
-                'policies_affected': f"{int(opp['policies_affected']):,}" if pd.notna(opp['policies_affected']) and opp['policies_affected'] > 0 else "N/A",
-                'product_lines': product_lines,
-                'filing_count': int(opp['filing_count']),
-                'recent_changes': recent_changes,
-                'urgency_percent': round(urgency_percent, 1),
-                'urgency_color': urgency_color,
-                'call_script': f"Call former customers when {self._clean_company_name(opp['Company'])} raises rates {round(opp['avg_increase'],1)}%."
+                "competitor": self._clean_company_name(opp["Company"]),
+                "rate_increase": round(opp["avg_increase"], 1),
+                "effective_date": pd.to_datetime(opp["effective_date"]).strftime("%B %d, %Y"),
+                "days_until": int(opp["days_until"]) if opp["days_until"] >= 0 else 0,
+                "policies_affected": (
+                    f"{int(opp['policies_affected']):,}"
+                    if pd.notna(opp["policies_affected"]) and opp["policies_affected"] > 0
+                    else "N/A"
+                ),
+                "product_lines": product_lines,
+                "filing_count": int(opp["filing_count"]),
+                "recent_changes": recent_changes,
+                "urgency_percent": round(urgency_percent, 1),
+                "urgency_color": urgency_color,
+                "call_script": f"Call former customers when {self._clean_company_name(opp['Company'])} raises rates {round(opp['avg_increase'],1)}%.",
             }
             opportunities.append(opp_data)
-            
+
             # Add to timeline (calculate outreach date - 30 days before effective)
-            if opp['days_until'] >= 0:
-                outreach_date = pd.to_datetime(opp['effective_date']) - timedelta(days=30)
-                timeline.append({
-                    'carrier': self._clean_company_name(opp['Company']),
-                    'effective_date': pd.to_datetime(opp['effective_date']).strftime('%b %d'),
-                    'outreach_date': outreach_date.strftime('%b %d'),
-                    'days_until': int(opp['days_until'])
-                })
-        
+            if opp["days_until"] >= 0:
+                outreach_date = pd.to_datetime(opp["effective_date"]) - timedelta(days=30)
+                timeline.append(
+                    {
+                        "carrier": self._clean_company_name(opp["Company"]),
+                        "effective_date": pd.to_datetime(opp["effective_date"]).strftime("%b %d"),
+                        "outreach_date": outreach_date.strftime("%b %d"),
+                        "days_until": int(opp["days_until"]),
+                    }
+                )
+
         # Sort timeline by days until
-        timeline.sort(key=lambda x: x['days_until'])
-        
+        timeline.sort(key=lambda x: x["days_until"])
+
         # Calculate estimated total policies
         total_policies = summary[3] if summary[3] and pd.notna(summary[3]) else 0
-        
+
         template_data = {
-            'agent_carrier': agent_carrier,
-            'state': state,
-            'report_date': datetime.now().strftime('%B %d, %Y'),
-            'total_opportunities': len(opportunities_df),
-            'urgent_opportunities': urgent_count if urgent_count > 0 else None,
-            'opportunities': opportunities[:8],  # Top 8
-            'avg_competitor_increase': round(summary[1], 1) if summary[1] else 0,
-            'max_increase': round(summary[2], 1) if summary[2] else 0,
-            'estimated_policies': f"{int(total_policies):,}" if total_policies > 0 else "5,000+",
-            'timeline': timeline[:6],  # Next 6 actions
-            'timestamp': datetime.now().strftime('%I:%M %p'),
-            'data_freshness': datetime.now().strftime('%B %d, %Y'),
-            'product_options': sorted(product_set)
+            "agent_carrier": agent_carrier,
+            "state": state,
+            "report_date": datetime.now().strftime("%B %d, %Y"),
+            "total_opportunities": len(opportunities_df),
+            "urgent_opportunities": urgent_count if urgent_count > 0 else None,
+            "opportunities": opportunities[:8],  # Top 8
+            "avg_competitor_increase": round(summary[1], 1) if summary[1] else 0,
+            "max_increase": round(summary[2], 1) if summary[2] else 0,
+            "estimated_policies": f"{int(total_policies):,}" if total_policies > 0 else "5,000+",
+            "timeline": timeline[:6],  # Next 6 actions
+            "timestamp": datetime.now().strftime("%I:%M %p"),
+            "data_freshness": datetime.now().strftime("%B %d, %Y"),
+            "product_options": sorted(product_set),
         }
-        
+
         return self.report_template.render(**template_data)
-    
+
     def _clean_company_name(self, name):
         """Clean up company names for display"""
         # Fix spacing issues
         replacements = {
-            'InsuranceCompany': ' Insurance Company',
-            'MutualAutomobile': ' Mutual Automobile',
-            'andCasualty': ' and Casualty',
-            'Fire and': 'Fire &',
-            'Property and': 'Property &'
+            "InsuranceCompany": " Insurance Company",
+            "MutualAutomobile": " Mutual Automobile",
+            "andCasualty": " and Casualty",
+            "Fire and": "Fire &",
+            "Property and": "Property &",
         }
-        
+
         for old, new in replacements.items():
             name = name.replace(old, new)
-        
+
         # Shorten if too long
         if len(name) > 35:
-            name = name[:32] + '...'
-        
+            name = name[:32] + "..."
+
         return name.strip()
-    
+
     def save_report(self, html_content, filename=None):
         """Save report to file"""
         if filename is None:
             filename = f"rate_increase_intel_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
-        
-        os.makedirs('reports', exist_ok=True)
-        filepath = os.path.join('reports', filename)
-        
-        with open(filepath, 'w') as f:
+
+        os.makedirs("reports", exist_ok=True)
+        filepath = os.path.join("reports", filename)
+
+        with open(filepath, "w") as f:
             f.write(html_content)
-        
+
         return filepath
+
 
 # Generate refined reports
 if __name__ == "__main__":
     generator = AgentIntelligenceReportV2Refined()
-    
+
     # Test scenarios
-    test_scenarios = [
-        ("State Farm", "Arizona"),
-        ("Allstate", "Illinois"),
-        ("Progressive", "Texas")
-    ]
-    
+    test_scenarios = [("State Farm", "Arizona"), ("Allstate", "Illinois"), ("Progressive", "Texas")]
+
     for carrier, state in test_scenarios:
         print(f"\nGenerating refined report for {carrier} agent in {state}...")
-        
+
         html = generator.generate_agent_report(carrier, state)
         filepath = generator.save_report(
-            html, 
-            f"rate_intel_{carrier.lower().replace(' ', '_')}_{state.lower()}_{datetime.now().strftime('%Y%m%d')}.html"
+            html,
+            f"rate_intel_{carrier.lower().replace(' ', '_')}_{state.lower()}_{datetime.now().strftime('%Y%m%d')}.html",
         )
         print(f"✅ Report saved: {filepath}")
-        
+
         # Open the first one in browser
         if carrier == "State Farm":
             import webbrowser
+
             webbrowser.open(f"file://{os.path.abspath(filepath)}")

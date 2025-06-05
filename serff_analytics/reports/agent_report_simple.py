@@ -6,11 +6,13 @@ import os
 import base64
 from io import BytesIO
 import matplotlib
-matplotlib.use('Agg')
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+
 class AgentIntelligenceReportV3Simple:
-    def __init__(self, db_path='data/insurance_filings.db'):
+    def __init__(self, db_path="serff_analytics/data/insurance_filings.db"):
         self.db_path = db_path
         self.html_template = """
 <!DOCTYPE html>
@@ -357,47 +359,49 @@ class AgentIntelligenceReportV3Simple:
 </body>
 </html>
         """
-    
+
     def get_connection(self):
         return duckdb.connect(self.db_path)
-    
-    def generate_sparkline(self, data, filename='sparkline.png'):
+
+    def generate_sparkline(self, data, filename="sparkline.png"):
         """Generate sparkline image"""
-        fig, ax = plt.subplots(figsize=(8, 2), facecolor='None')
-        
+        fig, ax = plt.subplots(figsize=(8, 2), facecolor="None")
+
         x = range(len(data))
-        ax.plot(x, data, '#14b8a6', linewidth=3, solid_capstyle='round')
-        ax.fill_between(x, data, alpha=0.3, color='#14b8a6')
-        
+        ax.plot(x, data, "#14b8a6", linewidth=3, solid_capstyle="round")
+        ax.fill_between(x, data, alpha=0.3, color="#14b8a6")
+
         # Style
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.spines['bottom'].set_visible(False)
-        ax.spines['left'].set_visible(False)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["bottom"].set_visible(False)
+        ax.spines["left"].set_visible(False)
         ax.set_xticks([])
         ax.set_yticks([])
-        
+
         # Add dots
-        ax.scatter([0, len(data)-1], [data[0], data[-1]], color='#14b8a6', s=50, zorder=5)
-        
+        ax.scatter([0, len(data) - 1], [data[0], data[-1]], color="#14b8a6", s=50, zorder=5)
+
         # Save
-        os.makedirs('reports/assets', exist_ok=True)
-        filepath = f'reports/assets/{filename}'
-        plt.savefig(filepath, transparent=True, bbox_inches='tight', pad_inches=0.1, dpi=200)
+        os.makedirs("reports/assets", exist_ok=True)
+        filepath = f"reports/assets/{filename}"
+        plt.savefig(filepath, transparent=True, bbox_inches="tight", pad_inches=0.1, dpi=200)
         plt.close()
-        
+
         # Convert to base64 for embedding
-        with open(filepath, 'rb') as f:
+        with open(filepath, "rb") as f:
             img_data = f.read()
         b64_data = base64.b64encode(img_data).decode()
-        
+
         return f"data:image/png;base64,{b64_data}"
-    
-    def generate_agent_report(self, agent_carrier, state, dashboard_url="https://app.insureintell.com/dashboard"):
+
+    def generate_agent_report(
+        self, agent_carrier, state, dashboard_url="https://app.insureintell.com/dashboard"
+    ):
         """Generate clean HTML report"""
-        
+
         conn = self.get_connection()
-        
+
         # Get carrier data
         carrier_search = f"""
         SELECT DISTINCT Company 
@@ -410,9 +414,9 @@ class AgentIntelligenceReportV3Simple:
         if not carrier_result:
             conn.close()
             return None
-        
+
         exact_carrier = carrier_result[0]
-        
+
         # Get agent's rate
         agent_rate_sql = f"""
         SELECT AVG(Premium_Change_Number) * 100 as avg_rate
@@ -423,7 +427,7 @@ class AgentIntelligenceReportV3Simple:
         """
         agent_rate_result = conn.execute(agent_rate_sql).fetchone()
         agent_rate = agent_rate_result[0] if agent_rate_result[0] else 0
-        
+
         # Get opportunities
         opportunities_sql = f"""
         WITH competitor_rates AS (
@@ -448,9 +452,9 @@ class AgentIntelligenceReportV3Simple:
         ORDER BY days_until ASC, rate_advantage DESC
         LIMIT 6
         """
-        
+
         opportunities_df = conn.execute(opportunities_sql).fetchdf()
-        
+
         # Get market trend data
         trend_sql = f"""
         SELECT 
@@ -463,9 +467,9 @@ class AgentIntelligenceReportV3Simple:
         GROUP BY week
         ORDER BY week
         """
-        
+
         trend_df = conn.execute(trend_sql).fetchdf()
-        
+
         # Get market position
         position_sql = f"""
         WITH carrier_rates AS (
@@ -485,66 +489,70 @@ class AgentIntelligenceReportV3Simple:
         position_result = conn.execute(position_sql).fetchone()
         market_position = position_result[0] if position_result else 1
         total_carriers = position_result[1] if position_result else 1
-        
+
         conn.close()
-        
+
         # Generate sparkline
-        sparkline_data = trend_df['filings'].tolist() if len(trend_df) > 0 else [5, 8, 12, 10, 15]
+        sparkline_data = trend_df["filings"].tolist() if len(trend_df) > 0 else [5, 8, 12, 10, 15]
         sparkline_src = self.generate_sparkline(sparkline_data)
-        
+
         # Process opportunities
         opportunities = []
         timeline = []
         total_revenue = 0
         urgent_count = 0
-        
+
         for _, opp in opportunities_df.iterrows():
-            policies = int(opp['policies_affected']) if pd.notna(opp['policies_affected']) else 100
+            policies = int(opp["policies_affected"]) if pd.notna(opp["policies_affected"]) else 100
             commission = int(policies * 1200 * 0.15 * 0.65)
             total_revenue += commission
-            
-            if opp['days_until'] <= 7:
+
+            if opp["days_until"] <= 7:
                 urgent_count += 1
-            
-            opportunities.append({
-                'carrier': self._clean_name(opp['Company']),
-                'rate': round(opp['avg_increase'], 1),
-                'advantage': round(opp['rate_advantage'], 1),
-                'effective_date': pd.to_datetime(opp['effective_date']).strftime('%b %d'),
-                'days_until': int(opp['days_until']),
-                'commission': f"{commission:,}"
-            })
-            
-            if opp['days_until'] <= 30:
-                timeline.append({
-                    'date': pd.to_datetime(opp['effective_date']).strftime('%b %d'),
-                    'carrier': self._clean_name(opp['Company']),
-                    'action': 'Begin outreach campaign',
-                    'urgent': opp['days_until'] <= 7
-                })
-        
+
+            opportunities.append(
+                {
+                    "carrier": self._clean_name(opp["Company"]),
+                    "rate": round(opp["avg_increase"], 1),
+                    "advantage": round(opp["rate_advantage"], 1),
+                    "effective_date": pd.to_datetime(opp["effective_date"]).strftime("%b %d"),
+                    "days_until": int(opp["days_until"]),
+                    "commission": f"{commission:,}",
+                }
+            )
+
+            if opp["days_until"] <= 30:
+                timeline.append(
+                    {
+                        "date": pd.to_datetime(opp["effective_date"]).strftime("%b %d"),
+                        "carrier": self._clean_name(opp["Company"]),
+                        "action": "Begin outreach campaign",
+                        "urgent": opp["days_until"] <= 7,
+                    }
+                )
+
         # Build template data
         template_data = {
-            'report_date': datetime.now().strftime('%B %d, %Y'),
-            'agent_carrier': agent_carrier,
-            'state': state,
-            'revenue_opportunity': f"{total_revenue:,}",
-            'win_back_count': len(opportunities_df),
-            'urgent_actions': urgent_count,
-            'sparkline_src': sparkline_src,
-            'market_position': market_position,
-            'total_carriers': total_carriers,
-            'opportunities': opportunities[:4],
-            'timeline': timeline[:5],
-            'dashboard_url': f"{dashboard_url}?agent={agent_carrier.lower()}&state={state.lower()}"
+            "report_date": datetime.now().strftime("%B %d, %Y"),
+            "agent_carrier": agent_carrier,
+            "state": state,
+            "revenue_opportunity": f"{total_revenue:,}",
+            "win_back_count": len(opportunities_df),
+            "urgent_actions": urgent_count,
+            "sparkline_src": sparkline_src,
+            "market_position": market_position,
+            "total_carriers": total_carriers,
+            "opportunities": opportunities[:4],
+            "timeline": timeline[:5],
+            "dashboard_url": f"{dashboard_url}?agent={agent_carrier.lower()}&state={state.lower()}",
         }
-        
+
         # Simple template rendering
         html = self.html_template
         for key, value in template_data.items():
             if isinstance(value, list):
                 # Handle lists specially
-                if key == 'opportunities':
+                if key == "opportunities":
                     opp_html = ""
                     for opp in value:
                         opp_html += f"""
@@ -573,8 +581,8 @@ class AgentIntelligenceReportV3Simple:
                             </div>
                         </div>
                         """
-                    html = html.replace('{% for opp in opportunities %}...{% endfor %}', opp_html)
-                elif key == 'timeline':
+                    html = html.replace("{% for opp in opportunities %}...{% endfor %}", opp_html)
+                elif key == "timeline":
                     timeline_html = ""
                     for event in value:
                         timeline_html += f"""
@@ -586,55 +594,58 @@ class AgentIntelligenceReportV3Simple:
                             <td>{event['action']}</td>
                         </tr>
                         """
-                    html = html.replace('{% for event in timeline %}...{% endfor %}', timeline_html)
+                    html = html.replace("{% for event in timeline %}...{% endfor %}", timeline_html)
             else:
-                html = html.replace('{{ ' + key + ' }}', str(value))
-        
+                html = html.replace("{{ " + key + " }}", str(value))
+
         # Clean up template syntax
         import re
-        html = re.sub(r'{%.*?%}', '', html)
-        
+
+        html = re.sub(r"{%.*?%}", "", html)
+
         return html
-    
+
     def _clean_name(self, name):
         """Clean company names"""
-        name = name.replace('InsuranceCompany', ' Insurance')
-        name = name.replace('MutualAutomobile', ' Mutual')
+        name = name.replace("InsuranceCompany", " Insurance")
+        name = name.replace("MutualAutomobile", " Mutual")
         if len(name) > 25:
-            name = name[:22] + '...'
+            name = name[:22] + "..."
         return name.strip()
-    
+
     def save_report(self, html_content, filename=None):
         """Save report"""
         if filename is None:
             filename = f"agent_intel_v3_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
-        
-        os.makedirs('reports', exist_ok=True)
-        filepath = os.path.join('reports', filename)
-        
-        with open(filepath, 'w') as f:
+
+        os.makedirs("reports", exist_ok=True)
+        filepath = os.path.join("reports", filename)
+
+        with open(filepath, "w") as f:
             f.write(html_content)
-        
+
         return filepath
+
 
 # Generate reports
 if __name__ == "__main__":
     generator = AgentIntelligenceReportV3Simple()
-    
+
     carrier = "State Farm"
     state = "Arizona"
-    
+
     print(f"\nGenerating V3 Simple report for {carrier} agent in {state}...")
-    
+
     html = generator.generate_agent_report(carrier, state)
     if html:
         filepath = generator.save_report(
             html,
-            f"agent_intel_v3_{carrier.lower().replace(' ', '_')}_{state.lower()}_{datetime.now().strftime('%Y%m%d')}.html"
+            f"agent_intel_v3_{carrier.lower().replace(' ', '_')}_{state.lower()}_{datetime.now().strftime('%Y%m%d')}.html",
         )
         print(f"✅ Report saved: {filepath}")
-        
+
         import webbrowser
+
         webbrowser.open(f"file://{os.path.abspath(filepath)}")
     else:
         print(f"❌ No data found for {carrier} in {state}")

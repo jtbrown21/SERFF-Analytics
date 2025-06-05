@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class DatabaseManager:
-    def __init__(self, db_path="data/insurance_filings.db"):
+    def __init__(self, db_path="serff_analytics/data/insurance_filings.db"):
         self.db_path = db_path
         # Ensure the directory for the database exists
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)

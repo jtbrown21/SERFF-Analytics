@@ -10,8 +10,9 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
 
+
 class AgentIntelligenceReportV3:
-    def __init__(self, db_path='data/insurance_filings.db'):
+    def __init__(self, db_path="serff_analytics/data/insurance_filings.db"):
         self.db_path = db_path
         # MJML template for email-first design
         self.mjml_template = """
@@ -241,55 +242,58 @@ class AgentIntelligenceReportV3:
   </mj-body>
 </mjml>
         """
-    
-    def generate_sparkline_gif(self, data, filename='sparkline.gif'):
+
+    def generate_sparkline_gif(self, data, filename="sparkline.gif"):
         """Generate sparkline image (static for reliability)"""
         import matplotlib
-        matplotlib.use('Agg')  # Use non-interactive backend
+
+        matplotlib.use("Agg")  # Use non-interactive backend
         import matplotlib.pyplot as plt
 
         # Create a beautiful static sparkline
-        fig, ax = plt.subplots(figsize=(8, 2), facecolor='None')
+        fig, ax = plt.subplots(figsize=(8, 2), facecolor="None")
 
         # Smooth the data for better visual
         x = range(len(data))
 
         # Create gradient effect
-        ax.plot(x, data, '#14b8a6', linewidth=3, solid_capstyle='round')
+        ax.plot(x, data, "#14b8a6", linewidth=3, solid_capstyle="round")
 
         # Add gradient fill
-        ax.fill_between(x, data, alpha=0.3, color='#14b8a6')
+        ax.fill_between(x, data, alpha=0.3, color="#14b8a6")
 
         # Add subtle grid
-        ax.grid(True, alpha=0.1, linestyle='-', linewidth=0.5)
+        ax.grid(True, alpha=0.1, linestyle="-", linewidth=0.5)
 
         # Style
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.spines['bottom'].set_visible(False)
-        ax.spines['left'].set_visible(False)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["bottom"].set_visible(False)
+        ax.spines["left"].set_visible(False)
         ax.set_xticks([])
         ax.set_yticks([])
 
         # Add start and end dots
-        ax.scatter([0, len(data)-1], [data[0], data[-1]], color='#14b8a6', s=50, zorder=5)
+        ax.scatter([0, len(data) - 1], [data[0], data[-1]], color="#14b8a6", s=50, zorder=5)
 
         # Save
-        os.makedirs('reports/assets', exist_ok=True)
+        os.makedirs("reports/assets", exist_ok=True)
         filepath = f'reports/assets/{filename.replace(".gif", ".png")}'
-        plt.savefig(filepath, transparent=True, bbox_inches='tight', pad_inches=0.1, dpi=200)
+        plt.savefig(filepath, transparent=True, bbox_inches="tight", pad_inches=0.1, dpi=200)
         plt.close()
 
         return filepath
-    
+
     def get_connection(self):
         return duckdb.connect(self.db_path)
-    
-    def generate_agent_report(self, agent_carrier, state, dashboard_url="https://app.insureintell.com/dashboard"):
+
+    def generate_agent_report(
+        self, agent_carrier, state, dashboard_url="https://app.insureintell.com/dashboard"
+    ):
         """Generate MJML-based agent report"""
-        
+
         conn = self.get_connection()
-        
+
         # Get carrier data
         carrier_search = f"""
         SELECT DISTINCT Company 
@@ -302,9 +306,9 @@ class AgentIntelligenceReportV3:
         if not carrier_result:
             conn.close()
             return None
-        
+
         exact_carrier = carrier_result[0]
-        
+
         # Get agent's rate
         agent_rate_sql = f"""
         SELECT AVG(Premium_Change_Number) * 100 as avg_rate
@@ -315,7 +319,7 @@ class AgentIntelligenceReportV3:
         """
         agent_rate_result = conn.execute(agent_rate_sql).fetchone()
         agent_rate = agent_rate_result[0] if agent_rate_result[0] else 0
-        
+
         # Get opportunities
         opportunities_sql = f"""
         WITH competitor_rates AS (
@@ -340,9 +344,9 @@ class AgentIntelligenceReportV3:
         ORDER BY days_until ASC, rate_advantage DESC
         LIMIT 6
         """
-        
+
         opportunities_df = conn.execute(opportunities_sql).fetchdf()
-        
+
         # Get market trend data for sparkline
         trend_sql = """
         SELECT 
@@ -354,10 +358,12 @@ class AgentIntelligenceReportV3:
         AND Effective_Date <= CURRENT_DATE
         GROUP BY week
         ORDER BY week
-        """.format(state)
-        
+        """.format(
+            state
+        )
+
         trend_df = conn.execute(trend_sql).fetchdf()
-        
+
         # Get market position
         position_sql = f"""
         WITH carrier_rates AS (
@@ -377,154 +383,157 @@ class AgentIntelligenceReportV3:
         position_result = conn.execute(position_sql).fetchone()
         market_position = position_result[0] if position_result else 1
         total_carriers = position_result[1] if position_result else 1
-        
+
         conn.close()
-        
+
         # Generate sparkline GIF
-        sparkline_data = trend_df['filings'].tolist() if len(trend_df) > 0 else [0]
+        sparkline_data = trend_df["filings"].tolist() if len(trend_df) > 0 else [0]
         sparkline_path = self.generate_sparkline_gif(sparkline_data)
-        
+
         # Process opportunities
         opportunities = []
         timeline = []
         total_revenue = 0
         urgent_count = 0
-        
+
         for _, opp in opportunities_df.iterrows():
-            policies = int(opp['policies_affected']) if pd.notna(opp['policies_affected']) else 100
+            policies = int(opp["policies_affected"]) if pd.notna(opp["policies_affected"]) else 100
             commission = int(policies * 1200 * 0.15 * 0.65)  # Assume 65% win rate
             total_revenue += commission
-            
-            if opp['days_until'] <= 7:
+
+            if opp["days_until"] <= 7:
                 urgent_count += 1
-            
+
             opp_data = {
-                'carrier': self._clean_name(opp['Company']),
-                'rate': round(opp['avg_increase'], 1),
-                'advantage': round(opp['rate_advantage'], 1),
-                'effective_date': pd.to_datetime(opp['effective_date']).strftime('%b %d'),
-                'days_until': int(opp['days_until']),
-                'commission': f"{commission:,}",
-                'segments': ['Multi-car', 'Loyalty seekers', 'Price-sensitive'][:2]
+                "carrier": self._clean_name(opp["Company"]),
+                "rate": round(opp["avg_increase"], 1),
+                "advantage": round(opp["rate_advantage"], 1),
+                "effective_date": pd.to_datetime(opp["effective_date"]).strftime("%b %d"),
+                "days_until": int(opp["days_until"]),
+                "commission": f"{commission:,}",
+                "segments": ["Multi-car", "Loyalty seekers", "Price-sensitive"][:2],
             }
             opportunities.append(opp_data)
-            
+
             # Timeline
-            if opp['days_until'] <= 30:
-                timeline.append({
-                    'date': pd.to_datetime(opp['effective_date']).strftime('%b %d'),
-                    'carrier': self._clean_name(opp['Company']),
-                    'action': 'Begin outreach campaign',
-                    'urgent': opp['days_until'] <= 7
-                })
-        
+            if opp["days_until"] <= 30:
+                timeline.append(
+                    {
+                        "date": pd.to_datetime(opp["effective_date"]).strftime("%b %d"),
+                        "carrier": self._clean_name(opp["Company"]),
+                        "action": "Begin outreach campaign",
+                        "urgent": opp["days_until"] <= 7,
+                    }
+                )
+
         # Build MJML data
         mjml_data = {
-            'report_date': datetime.now().strftime('%B %d, %Y'),
-            'agent_carrier': agent_carrier,
-            'state': state,
-            'revenue_opportunity': f"{total_revenue:,}",
-            'win_back_count': len(opportunities_df),
-            'urgent_actions': urgent_count,
-            'sparkline_gif': f"cid:sparkline",  # Email attachment reference
-            'market_position': market_position,
-            'total_carriers': total_carriers,
-            'opportunities': opportunities[:4],
-            'timeline': timeline[:5],
-            'dashboard_url': f"{dashboard_url}?agent={agent_carrier.lower()}&state={state.lower()}",
-            'timestamp': datetime.now().strftime('%I:%M %p'),
-            'unsubscribe_url': '#',
-            'help_url': '#'
+            "report_date": datetime.now().strftime("%B %d, %Y"),
+            "agent_carrier": agent_carrier,
+            "state": state,
+            "revenue_opportunity": f"{total_revenue:,}",
+            "win_back_count": len(opportunities_df),
+            "urgent_actions": urgent_count,
+            "sparkline_gif": f"cid:sparkline",  # Email attachment reference
+            "market_position": market_position,
+            "total_carriers": total_carriers,
+            "opportunities": opportunities[:4],
+            "timeline": timeline[:5],
+            "dashboard_url": f"{dashboard_url}?agent={agent_carrier.lower()}&state={state.lower()}",
+            "timestamp": datetime.now().strftime("%I:%M %p"),
+            "unsubscribe_url": "#",
+            "help_url": "#",
         }
-        
+
         # Render MJML
         mjml_content = self.mjml_template
         for key, value in mjml_data.items():
             if isinstance(value, list):
                 # Handle list templating manually
-                if key == 'opportunities':
+                if key == "opportunities":
                     opp_html = ""
                     for opp in value:
                         # Build opportunity HTML
                         segments_html = ""
-                        for seg in opp.get('segments', []):
+                        for seg in opp.get("segments", []):
                             segments_html += f'<span style="background: #e0f2fe; color: #0369a1; padding: 4px 12px; border-radius: 16px; font-size: 13px; margin-right: 8px;">{seg}</span>'
-                        
-                        opp['segments_html'] = segments_html
-                    mjml_content = mjml_content.replace('{{ ' + key + ' }}', str(value))
-                elif key == 'timeline':
-                    mjml_content = mjml_content.replace('{{ ' + key + ' }}', str(value))
+
+                        opp["segments_html"] = segments_html
+                    mjml_content = mjml_content.replace("{{ " + key + " }}", str(value))
+                elif key == "timeline":
+                    mjml_content = mjml_content.replace("{{ " + key + " }}", str(value))
             else:
-                mjml_content = mjml_content.replace('{{ ' + key + ' }}', str(value))
-        
+                mjml_content = mjml_content.replace("{{ " + key + " }}", str(value))
+
         # For now, return the MJML (would need to compile to HTML with mjml command)
         return mjml_content, sparkline_path
-    
+
     def _clean_name(self, name):
         """Clean company names"""
-        name = name.replace('InsuranceCompany', ' Insurance')
-        name = name.replace('MutualAutomobile', ' Mutual')
+        name = name.replace("InsuranceCompany", " Insurance")
+        name = name.replace("MutualAutomobile", " Mutual")
         if len(name) > 25:
-            name = name[:22] + '...'
+            name = name[:22] + "..."
         return name.strip()
-    
+
     def compile_mjml(self, mjml_content, output_file):
         """Compile MJML to HTML using mjml CLI"""
         # Save MJML temporarily
-        temp_mjml = 'reports/temp.mjml'
-        with open(temp_mjml, 'w') as f:
+        temp_mjml = "reports/temp.mjml"
+        with open(temp_mjml, "w") as f:
             f.write(mjml_content)
-        
+
         # Compile with mjml
         try:
-            subprocess.run(['mjml', temp_mjml, '-o', output_file], check=True)
+            subprocess.run(["mjml", temp_mjml, "-o", output_file], check=True)
             os.remove(temp_mjml)
             return True
         except:
             print("MJML CLI not found. Install with: npm install -g mjml")
             # Fallback: save as MJML
-            with open(output_file.replace('.html', '.mjml'), 'w') as f:
+            with open(output_file.replace(".html", ".mjml"), "w") as f:
                 f.write(mjml_content)
             return False
-    
+
     def save_report(self, mjml_content, sparkline_path, filename=None):
         """Save and compile report"""
         if filename is None:
             filename = f"agent_intel_v3_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
-        
-        os.makedirs('reports', exist_ok=True)
-        filepath = os.path.join('reports', filename)
-        
+
+        os.makedirs("reports", exist_ok=True)
+        filepath = os.path.join("reports", filename)
+
         # Try to compile MJML
         if self.compile_mjml(mjml_content, filepath):
             print(f"✅ Compiled HTML saved: {filepath}")
         else:
             # Save raw MJML
-            mjml_path = filepath.replace('.html', '.mjml')
-            with open(mjml_path, 'w') as f:
+            mjml_path = filepath.replace(".html", ".mjml")
+            with open(mjml_path, "w") as f:
                 f.write(mjml_content)
             print(f"📄 MJML saved: {mjml_path}")
             print("   Install MJML to compile: npm install -g mjml")
             print(f"   Then run: mjml {mjml_path} -o {filepath}")
-        
+
         return filepath
+
 
 # Generate V3 reports
 if __name__ == "__main__":
     generator = AgentIntelligenceReportV3()
-    
+
     # Test scenario
     carrier = "State Farm"
     state = "Arizona"
-    
+
     print(f"\nGenerating V3 report for {carrier} agent in {state}...")
-    
+
     mjml_content, sparkline_path = generator.generate_agent_report(carrier, state)
     if mjml_content:
         filepath = generator.save_report(
-            mjml_content, 
+            mjml_content,
             sparkline_path,
-            f"agent_intel_v3_{carrier.lower().replace(' ', '_')}_{state.lower()}_{datetime.now().strftime('%Y%m%d')}.html"
+            f"agent_intel_v3_{carrier.lower().replace(' ', '_')}_{state.lower()}_{datetime.now().strftime('%Y%m%d')}.html",
         )
         print(f"📊 Sparkline GIF: {sparkline_path}")
     else:
