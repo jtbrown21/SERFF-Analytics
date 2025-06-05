@@ -2,18 +2,19 @@
 """Code formatter for AI agents"""
 import subprocess
 import sys
-import os
+from pathlib import Path
 
 def format_python_files():
     """Format all Python files with black"""
     print("Formatting Python files...")
     
-    # Find all Python files
+    # Find all Python files under relevant directories
+    base_dirs = ["serff_analytics", "src", "scripts"]
     py_files = []
-    for root, dirs, files in os.walk("serff_analytics"):
-        for file in files:
-            if file.endswith(".py"):
-                py_files.append(os.path.join(root, file))
+    for base in base_dirs:
+        path = Path(base)
+        if path.is_dir():
+            py_files.extend(str(p) for p in path.rglob("*.py"))
     
     if py_files:
         result = subprocess.run([
