@@ -73,7 +73,14 @@ class DatabaseManager:
                             "ALTER TABLE filings ALTER COLUMN Premium_Change_Number SET DATA TYPE DECIMAL(10,4)"
                         )
                         logger.info("Migrated Premium_Change_Number to DECIMAL(10,4)")
-                        break
+                    if row[1] == "Previous_Increase_Percentage" and not row[2].upper().startswith(
+                        "VARCHAR"
+                    ):
+                        self._drop_all_indexes(conn)
+                        conn.execute(
+                            "ALTER TABLE filings ALTER COLUMN Previous_Increase_Percentage SET DATA TYPE VARCHAR"
+                        )
+                        logger.info("Migrated Previous_Increase_Percentage to VARCHAR")
         except duckdb.CatalogException:
             # Table doesn't exist yet; it will be created below
             pass
@@ -92,7 +99,7 @@ class DatabaseManager:
                 Premium_Change_Amount_Text VARCHAR,
                 Effective_Date DATE,
                 Previous_Increase_Date DATE,
-                Previous_Increase_Percentage DECIMAL(10,4),
+                Previous_Increase_Percentage VARCHAR,
                 Policyholders_Affected_Number INTEGER,
                 Policyholders_Affected_Text VARCHAR,
                 Total_Written_Premium_Number DECIMAL(15,2),

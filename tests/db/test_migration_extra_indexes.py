@@ -13,7 +13,7 @@ CREATE TABLE filings (
     Premium_Change_Amount_Text VARCHAR,
     Effective_Date DATE,
     Previous_Increase_Date DATE,
-    Previous_Increase_Percentage DECIMAL(10,2),
+    Previous_Increase_Percentage VARCHAR,
     Policyholders_Affected_Number INTEGER,
     Policyholders_Affected_Text VARCHAR,
     Total_Written_Premium_Number DECIMAL(15,2),
@@ -48,6 +48,7 @@ def test_migration_drops_extra_indexes(tmp_path):
             for row in conn.execute("PRAGMA table_info('filings')").fetchall()
         }
         assert info["Premium_Change_Number"].upper() == "DECIMAL(10,4)"
+        assert info["Previous_Increase_Percentage"].upper().startswith("VARCHAR")
         indexes = {
             row[0]
             for row in conn.execute(

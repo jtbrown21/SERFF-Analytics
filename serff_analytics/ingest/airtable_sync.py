@@ -107,9 +107,10 @@ class AirtableSync:
                     "Previous_Increase_Date": self._parse_date(
                         fields.get("Previous Increase Date")
                     ),
-                    "Previous_Increase_Percentage": self._parse_number(
-                        fields.get("Previous Increase Percentage"), "Previous Increase Percentage"
-                    ),
+                    # Store the value exactly as provided. Some records include
+                    # a trailing '%' which caused parse errors when treated as
+                    # numeric.
+                    "Previous_Increase_Percentage": fields.get("Previous Increase Percentage", ""),
                     "Policyholders_Affected_Number": self._parse_number(
                         fields.get("Policyholders Affected Number"), "Policyholders Affected Number"
                     ),
@@ -154,7 +155,10 @@ class AirtableSync:
 
                 # Only keep DataFrame columns that exist in the database
                 df_columns = [col for col in df.columns if col in db_columns]
-                df_filtered = df[df_columns]
+                # Reset the index to ensure a clean RangeIndex before passing
+                # the DataFrame to DuckDB. A non-default index can trigger
+                # IndexError during registration.
+                df_filtered = df[df_columns].reset_index(drop=True)
                 logger.info(f"Filtered DataFrame to columns: {df_columns}")
 
                 # Clear existing data (for initial testing)
