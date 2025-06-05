@@ -52,22 +52,28 @@ class DatabaseManager:
         with self.connection() as conn:
             return conn.execute(query, params or [])
 
+    def _drop_all_indexes(self, conn) -> None:
+        """Remove all indexes on the filings table."""
+        indexes = conn.execute(
+            "SELECT index_name FROM duckdb_indexes() WHERE table_name='filings'"
+        ).fetchall()
+        for (idx,) in indexes:
+            conn.execute(f'DROP INDEX IF EXISTS "{idx}"')
+
     def init_database(self):
         """Initialize database with proper schema"""
         try:
             with self.connection() as conn:
                 info = conn.execute("PRAGMA table_info('filings')").fetchall()
-            for row in info:
-                if row[1] == "Premium_Change_Number" and row[2].upper() == "DECIMAL(10,2)":
-                    # Drop dependent indexes before altering the column type
-                    self.execute("DROP INDEX IF EXISTS idx_state_product")
-                    self.execute("DROP INDEX IF EXISTS idx_company")
-                    self.execute("DROP INDEX IF EXISTS idx_effective_date")
-                    self.execute(
-                        "ALTER TABLE filings ALTER COLUMN Premium_Change_Number SET DATA TYPE DECIMAL(10,4)"
-                    )
-                    logger.info("Migrated Premium_Change_Number to DECIMAL(10,4)")
-                    break
+                for row in info:
+                    if row[1] == "Premium_Change_Number" and row[2].upper() == "DECIMAL(10,2)":
+                        # Drop all dependent indexes before altering the column type
+                        self._drop_all_indexes(conn)
+                        conn.execute(
+                            "ALTER TABLE filings ALTER COLUMN Premium_Change_Number SET DATA TYPE DECIMAL(10,4)"
+                        )
+                        logger.info("Migrated Premium_Change_Number to DECIMAL(10,4)")
+                        break
         except duckdb.CatalogException:
             # Table doesn't exist yet; it will be created below
             pass

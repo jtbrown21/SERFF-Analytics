@@ -30,6 +30,9 @@ def test_sync_only_updated_records(monkeypatch, db_path):
     mock_iterate = MagicMock(return_value=pages)
     monkeypatch.setattr(Table, "iterate", mock_iterate)
     monkeypatch.setattr(config.Config, "DB_PATH", str(db_path))
+    monkeypatch.setattr(config.Config, "AIRTABLE_API_KEY", "key")
+    monkeypatch.setattr(config.Config, "AIRTABLE_BASE_ID", "base")
+    monkeypatch.setattr(config.Config, "AIRTABLE_TABLE_NAME", "table")
 
     sync = AirtableSync()
     result = sync.sync_data(since=since)
