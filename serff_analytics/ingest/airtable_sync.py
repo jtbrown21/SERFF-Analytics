@@ -3,6 +3,13 @@ from pyairtable import Table
 import duckdb
 from datetime import datetime
 import logging
+from tenacity import (
+    retry,
+    wait_exponential,
+    stop_after_attempt,
+    before_sleep_log,
+    RetryError,
+)
 from serff_analytics.config import Config
 from serff_analytics.db import DatabaseManager
 
@@ -19,14 +26,28 @@ class AirtableSync:
         )
         self.db = DatabaseManager(Config.DB_PATH)
 
+    @retry(
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        stop=stop_after_attempt(5),
+        reraise=True,
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+    )
+    def _safe_call(self, func, *args, **kwargs):
+        """Call Airtable API methods with retries."""
+        return func(*args, **kwargs)
+
     def _fetch_records(self, since: datetime | None = None):
         """Stream records from Airtable page by page."""
         params: dict[str, str] = {}
         if since:
             params["filter_by_formula"] = f"LAST_MODIFIED_TIME() > '{since.isoformat()}'"
 
-        for page in self.table.iterate(page_size=100, **params):
-            yield page
+        try:
+            for page in self._safe_call(self.table.iterate, page_size=100, **params):
+                yield page
+        except RetryError as exc:
+            logger.error(f"Failed to fetch records from Airtable: {exc}")
+            raise
 
     def sync_data(self, since: datetime | None = None):
         """Sync data from Airtable to DuckDB"""
@@ -226,7 +247,11 @@ class AirtableSync:
         """Diagnose issues with the Overall Rate Change Number field"""
         logger.info("=== Diagnosing Overall Rate Change Number field ===")
 
-        records = self.table.all()[:sample_size]
+        try:
+            records = self._safe_call(self.table.all)[:sample_size]
+        except RetryError as exc:
+            logger.error(f"Failed to fetch diagnostic records: {exc}")
+            raise
 
         issues = []
         valid_count = 0
@@ -263,7 +288,11 @@ class AirtableSync:
 
     def debug_field_values(self, field_name="Overall Rate Change Number", limit=20):
         """Debug specific field values from Airtable"""
-        records = self.table.all()[:limit]
+        try:
+            records = self._safe_call(self.table.all)[:limit]
+        except RetryError as exc:
+            logger.error(f"Failed to fetch debug records: {exc}")
+            raise
 
         value_types = {}
         examples_by_type = {}
@@ -293,7 +322,11 @@ class AirtableSync:
         """Inspect how Airtable returns percentage fields"""
         logger.info("Inspecting percentage field format from Airtable...")
 
-        records = self.table.all()[:records_sample]  # Get first few records
+        try:
+            records = self._safe_call(self.table.all)[:records_sample]
+        except RetryError as exc:
+            logger.error(f"Failed to inspect percentage field: {exc}")
+            raise
 
         for i, record in enumerate(records):
             value = record["fields"].get("Overall Rate Change Number")
@@ -313,7 +346,11 @@ class AirtableSync:
         ]
 
         logger.info("=== Validating All Numeric Fields ===")
-        records = self.table.all()
+        try:
+            records = self._safe_call(self.table.all)
+        except RetryError as exc:
+            logger.error(f"Failed to validate numeric fields: {exc}")
+            raise
 
         field_stats = {}
 
