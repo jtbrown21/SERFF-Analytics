@@ -1,6 +1,5 @@
 import pandas as pd
 from pyairtable import Table
-import duckdb
 from datetime import datetime
 import logging
 from tenacity import (
@@ -54,23 +53,46 @@ class AirtableSync:
         try:
             logger.info("Starting Airtable sync...")
 
-            total_inserted = 0
             total_processed = 0
             total_errors = 0
-            db_total_records = 0
+            all_dataframes: list[pd.DataFrame] = []
 
             for page_num, page in enumerate(self._fetch_records(since), start=1):
-                inserted, errors, db_total_records = self._process_page(page, page_num)
-                total_inserted += inserted
+                df, errors = self._process_page(page, page_num)
+                if not df.empty:
+                    all_dataframes.append(df)
                 total_processed += len(page)
                 total_errors += errors
+
+            combined_df = (
+                pd.concat(all_dataframes, ignore_index=True) if all_dataframes else pd.DataFrame()
+            )
+
+            with self.db.transaction() as conn:
+                inserted = 0
+                if not combined_df.empty:
+                    columns_str = ", ".join(combined_df.columns)
+                    placeholders = ", ".join(["?"] * len(combined_df))
+                    conn.execute(
+                        f"DELETE FROM filings WHERE Record_ID IN ({placeholders})",
+                        combined_df["Record_ID"].tolist(),
+                    )
+                    conn.register("staging", combined_df)
+                    try:
+                        conn.execute(
+                            f"INSERT INTO filings ({columns_str}) SELECT {columns_str} FROM staging"
+                        )
+                        inserted = len(combined_df)
+                    finally:
+                        conn.unregister("staging")
+                db_total_records = conn.execute("SELECT COUNT(*) FROM filings").fetchone()[0]
 
             logger.info(f"Sync completed. Total records in database: {db_total_records}")
 
             result = {
                 "success": True,
                 "records_processed": total_processed,
-                "records_inserted": total_inserted,
+                "records_inserted": inserted,
                 "total_records": db_total_records,
                 "parsing_errors": total_errors,
                 "failed_inserts": 0,
@@ -89,7 +111,7 @@ class AirtableSync:
             return {"success": False, "error": str(e)}
 
     def _process_page(self, page: list[dict], page_num: int):
-        """Convert a page of Airtable records and insert into the DB."""
+        """Convert a page of Airtable records to a DataFrame."""
         data: list[dict] = []
         parsing_errors: list[dict] = []
 
@@ -161,38 +183,9 @@ class AirtableSync:
             df_columns = [col for col in df.columns if col in db_columns]
             df_filtered = df[df_columns].reset_index(drop=True)
 
-            pre_dedup = len(df_filtered)
-            df_filtered = df_filtered.drop_duplicates(subset=["Record_ID"], keep="last")
-            if pre_dedup - len(df_filtered):
-                logger.warning(
-                    f"Page {page_num}: removed {pre_dedup - len(df_filtered)} duplicate Record_IDs"
-                )
+        logger.info(f"Fetched page {page_num} with {len(df_filtered)} records")
 
-            columns_str = ", ".join(df_columns)
-
-        # Remove existing records first using a separate short-lived connection
-        if not df_filtered.empty:
-            placeholders = ", ".join(["?"] * len(df_filtered))
-            self.db.execute(
-                f"DELETE FROM filings WHERE Record_ID IN ({placeholders})",
-                df_filtered["Record_ID"].tolist(),
-            )
-
-        with self.db.transaction() as conn:
-            conn.register("staging", df_filtered[df_columns])
-            try:
-                if not df_filtered.empty:
-                    conn.execute(
-                        f"INSERT INTO filings ({columns_str}) SELECT {columns_str} FROM staging"
-                    )
-                inserted = len(df_filtered)
-                db_total = conn.execute("SELECT COUNT(*) FROM filings").fetchone()[0]
-            finally:
-                conn.unregister("staging")
-
-        logger.info(f"Committed page {page_num} with {inserted} records")
-
-        return inserted, len(parsing_errors), db_total
+        return df_filtered, len(parsing_errors)
 
     def _parse_number(self, value, field_name=""):
         """Safely parse numeric values, including percentages stored as decimals"""
