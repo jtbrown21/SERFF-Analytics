@@ -5,7 +5,6 @@ import pytest
 from pyairtable import Table
 
 from serff_analytics.ingest.airtable_sync import AirtableSync
-from serff_analytics.db import DatabaseManager
 from serff_analytics import config
 
 
@@ -27,7 +26,7 @@ def test_sync_only_updated_records(monkeypatch, db_path):
     since = datetime.datetime(2024, 1, 1, 0, 0, 0)
     pages = [[make_record("r1", 0.1)], [make_record("r2", 0.2)]]
 
-    mock_iterate = MagicMock(return_value=pages)
+    mock_iterate = MagicMock(return_value=iter(pages))
     monkeypatch.setattr(Table, "iterate", mock_iterate)
     monkeypatch.setattr(config.Config, "DB_PATH", str(db_path))
     monkeypatch.setattr(config.Config, "AIRTABLE_API_KEY", "key")
@@ -52,7 +51,7 @@ def test_sync_only_updated_records(monkeypatch, db_path):
 def test_sync_deduplicates_record_id(monkeypatch, db_path):
     pages = [[make_record("dup", 0.1), make_record("dup", 0.1)]]
 
-    mock_iterate = MagicMock(return_value=pages)
+    mock_iterate = MagicMock(return_value=iter(pages))
     monkeypatch.setattr(Table, "iterate", mock_iterate)
     monkeypatch.setattr(config.Config, "DB_PATH", str(db_path))
     monkeypatch.setattr(config.Config, "AIRTABLE_API_KEY", "key")
@@ -71,7 +70,7 @@ def test_sync_deduplicates_record_id(monkeypatch, db_path):
 def test_temp_table_removed(monkeypatch, db_path):
     pages = [[make_record("t1", 0.1)]]
 
-    mock_iterate = MagicMock(return_value=pages)
+    mock_iterate = MagicMock(return_value=iter(pages))
     monkeypatch.setattr(Table, "iterate", mock_iterate)
     monkeypatch.setattr(config.Config, "DB_PATH", str(db_path))
     monkeypatch.setattr(config.Config, "AIRTABLE_API_KEY", "key")
@@ -94,7 +93,7 @@ def test_sync_temp_swap_handles_updates(monkeypatch, db_path):
         [make_record("upd", 0.2)],
     ]
 
-    mock_iterate = MagicMock(return_value=pages)
+    mock_iterate = MagicMock(return_value=iter(pages))
     monkeypatch.setattr(Table, "iterate", mock_iterate)
     monkeypatch.setattr(config.Config, "DB_PATH", str(db_path))
     monkeypatch.setattr(config.Config, "AIRTABLE_API_KEY", "key")
@@ -104,9 +103,36 @@ def test_sync_temp_swap_handles_updates(monkeypatch, db_path):
     sync = AirtableSync()
     result = sync.sync_data()
 
-    assert result["records_inserted"] == 1
+    assert result["records_inserted"] == 2
     with sync.db.connection() as conn:
         row = conn.execute(
             "SELECT Premium_Change_Number FROM filings WHERE Record_ID='upd'"
         ).fetchone()
     assert float(row[0]) == pytest.approx(0.2)
+
+
+def test_streaming_commits_each_page(monkeypatch, db_path):
+    pages = [[make_record("a", 0.1)], [make_record("b", 0.2)]]
+
+    mock_iterate = MagicMock(return_value=iter(pages))
+    monkeypatch.setattr(Table, "iterate", mock_iterate)
+    monkeypatch.setattr(config.Config, "DB_PATH", str(db_path))
+    monkeypatch.setattr(config.Config, "AIRTABLE_API_KEY", "key")
+    monkeypatch.setattr(config.Config, "AIRTABLE_BASE_ID", "base")
+    monkeypatch.setattr(config.Config, "AIRTABLE_TABLE_NAME", "table")
+
+    sync = AirtableSync()
+
+    calls = []
+    orig_trans = sync.db.transaction
+
+    def counting_trans(*args, **kwargs):
+        calls.append(1)
+        return orig_trans(*args, **kwargs)
+
+    monkeypatch.setattr(sync.db, "transaction", counting_trans)
+
+    result = sync.sync_data()
+
+    assert result["records_inserted"] == 2
+    assert len(calls) == len(pages)

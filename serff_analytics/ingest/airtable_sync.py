@@ -54,163 +54,30 @@ class AirtableSync:
         try:
             logger.info("Starting Airtable sync...")
 
-            # Optional: Run diagnostics first
-            # self.diagnose_rate_change_field()
-            # self.debug_field_values("Overall Rate Change Number")
+            total_inserted = 0
+            total_processed = 0
+            total_errors = 0
+            db_total_records = 0
 
-            # Fetch records, optionally filtered by last modified time
-            pages = list(self._fetch_records(since))
-            fetched_count = sum(len(p) for p in pages)
-            logger.info(f"Fetched {fetched_count} records from Airtable")
-            records = [r for page in pages for r in page]
-
-            # Convert to DataFrame
-            data = []
-            parsing_errors = []
-
-            for record in records:
-                fields = record["fields"]
-                # Map YOUR ACTUAL Airtable fields to database columns
-                product_line = fields.get("Product Line", "")
-
-                # Track parsing issues for Premium_Change_Number
-                rate_change_raw = fields.get("Overall Rate Change Number")
-                rate_change_parsed = self._parse_number(
-                    rate_change_raw, "Overall Rate Change Number"
-                )
-
-                if rate_change_raw is not None and rate_change_parsed is None:
-                    parsing_errors.append(
-                        {
-                            "record_id": record["id"],
-                            "field": "Overall Rate Change Number",
-                            "raw_value": rate_change_raw,
-                            "value_type": type(rate_change_raw).__name__,
-                        }
-                    )
-
-                row = {
-                    "Record_ID": record["id"],
-                    "Company": fields.get("Parent Company", ""),
-                    "Subsidiary": fields.get("Filing Company", ""),
-                    "State": fields.get("Impacted State", ""),
-                    # Map Airtable "Product Line" directly to the database column
-                    "Product_Line": product_line,
-                    "Rate_Change_Type": fields.get("Rate Change Type", ""),
-                    "Premium_Change_Number": rate_change_parsed,
-                    "Premium_Change_Amount_Text": fields.get("Overall Rate Change", ""),
-                    "Effective_Date": self._parse_date(
-                        fields.get("Effective Date")
-                        or fields.get("Effective Date (New)")
-                        or fields.get("Effective Date Requested (New)")
-                    ),
-                    "Previous_Increase_Date": self._parse_date(
-                        fields.get("Previous Increase Date")
-                    ),
-                    # Store the value exactly as provided. Some records include
-                    # a trailing '%' which caused parse errors when treated as
-                    # numeric.
-                    "Previous_Increase_Percentage": fields.get("Previous Increase Percentage", ""),
-                    "Policyholders_Affected_Number": self._parse_number(
-                        fields.get("Policyholders Affected Number"), "Policyholders Affected Number"
-                    ),
-                    "Policyholders_Affected_Text": fields.get("Policyholders Affected Text", ""),
-                    "Total_Written_Premium_Number": self._parse_number(
-                        fields.get("Total Written Premium Number"), "Total Written Premium Number"
-                    ),
-                    "Impact_Score": self._parse_number(fields.get("Impact Score"), "Impact Score"),
-                    "Total_Written_Premium_Text": fields.get("Total Written Premium Text", ""),
-                    "SERFF_Tracking_Number": fields.get("SERFF Tracking Number", ""),
-                    "Specific_Coverages": fields.get("Specific Coverages", ""),
-                    "Filing_Method": fields.get("Filing Method", ""),
-                    "Current_Status": fields.get("Current Status", ""),
-                    "Date_Submitted": self._parse_date(fields.get("Date Submitted")),
-                    "Disposition_Date": self._parse_date(fields.get("Disposition Date")),
-                    "Stated_Reasons": fields.get("Name", ""),
-                    "Population": fields.get("Population", ""),
-                    "Renewals_Date": self._parse_date(fields.get("Renewals Date")),
-                    "Updated_At": datetime.now(),
-                }
-                data.append(row)
-
-            # Report parsing errors if any
-            if parsing_errors:
-                logger.warning(f"Found {len(parsing_errors)} records with parsing errors:")
-                for error in parsing_errors[:5]:  # Show first 5
-                    logger.warning(
-                        f"  Record {error['record_id']}: {error['field']} = {repr(error['raw_value'])} ({error['value_type']})"
-                    )
-                if len(parsing_errors) > 5:
-                    logger.warning(f"  ... and {len(parsing_errors) - 5} more")
-
-            df = pd.DataFrame(data)
-            logger.info(f"DataFrame created with {len(df)} rows and columns: {list(df.columns)}")
-
-            # Load to DuckDB
-            with self.db.transaction() as conn:
-                # First, let's check what columns exist in the table
-                table_info = conn.execute("PRAGMA table_info(filings)").fetchall()
-                db_columns = [col[1] for col in table_info]
-                logger.info(f"Database columns: {db_columns}")
-
-                # Only keep DataFrame columns that exist in the database
-                df_columns = [col for col in df.columns if col in db_columns]
-                # Reset the index to ensure a clean RangeIndex before passing
-                # the DataFrame to DuckDB. A non-default index can trigger
-                # IndexError during registration.
-                df_filtered = df[df_columns].reset_index(drop=True)
-                logger.info(f"Filtered DataFrame to columns: {df_columns}")
-
-                # Deduplicate by Record_ID to avoid primary key violations
-                pre_dedup_count = len(df_filtered)
-                df_filtered = df_filtered.drop_duplicates(subset=["Record_ID"], keep="last")
-                removed_dupes = pre_dedup_count - len(df_filtered)
-                if removed_dupes:
-                    logger.warning(f"Removed {removed_dupes} duplicate Record_IDs before insert")
-
-                # Insert data using a temporary table swap
-                columns_str = ", ".join(df_columns)
-
-                conn.execute("CREATE TEMP TABLE tmp_filings AS SELECT * FROM filings WHERE 0")
-                conn.register("staging", df_filtered[df_columns])
-                try:
-                    insert_tmp = (
-                        f"INSERT INTO tmp_filings ({columns_str}) "
-                        f"SELECT {columns_str} FROM staging"
-                    )
-                    conn.execute(insert_tmp)
-                    inserted = conn.execute("SELECT COUNT(*) FROM staging").fetchone()[0]
-                    failed_inserts = 0
-                    logger.info(f"Inserted {inserted} records into temporary table")
-
-                    conn.execute("DELETE FROM filings")
-                    conn.execute(
-                        f"INSERT INTO filings ({columns_str}) SELECT {columns_str} FROM tmp_filings"
-                    )
-                    logger.info("Temporary table swap completed; filings table replaced")
-                finally:
-                    conn.unregister("staging")
-                    conn.execute("DROP TABLE tmp_filings")
-
-                # Get count
-                db_total_records = conn.execute("SELECT COUNT(*) FROM filings").fetchone()[0]
+            for page_num, page in enumerate(self._fetch_records(since), start=1):
+                inserted, errors, db_total_records = self._process_page(page, page_num)
+                total_inserted += inserted
+                total_processed += len(page)
+                total_errors += errors
 
             logger.info(f"Sync completed. Total records in database: {db_total_records}")
 
-            # Summary report
             result = {
                 "success": True,
-                "records_processed": len(df),
-                "records_inserted": inserted,
+                "records_processed": total_processed,
+                "records_inserted": total_inserted,
                 "total_records": db_total_records,
-                "parsing_errors": len(parsing_errors),
-                "failed_inserts": failed_inserts,
+                "parsing_errors": total_errors,
+                "failed_inserts": 0,
             }
 
-            if parsing_errors or failed_inserts:
-                result["warning"] = (
-                    f"{len(parsing_errors)} parsing errors, {failed_inserts} insert failures"
-                )
+            if total_errors:
+                result["warning"] = f"{total_errors} parsing errors"
 
             return result
 
@@ -220,6 +87,110 @@ class AirtableSync:
 
             logger.error(traceback.format_exc())
             return {"success": False, "error": str(e)}
+
+    def _process_page(self, page: list[dict], page_num: int):
+        """Convert a page of Airtable records and insert into the DB."""
+        data: list[dict] = []
+        parsing_errors: list[dict] = []
+
+        for record in page:
+            fields = record["fields"]
+
+            product_line = fields.get("Product Line", "")
+            rate_change_raw = fields.get("Overall Rate Change Number")
+            rate_change_parsed = self._parse_number(rate_change_raw, "Overall Rate Change Number")
+
+            if rate_change_raw is not None and rate_change_parsed is None:
+                parsing_errors.append(
+                    {
+                        "record_id": record["id"],
+                        "field": "Overall Rate Change Number",
+                        "raw_value": rate_change_raw,
+                        "value_type": type(rate_change_raw).__name__,
+                    }
+                )
+
+            row = {
+                "Record_ID": record["id"],
+                "Company": fields.get("Parent Company", ""),
+                "Subsidiary": fields.get("Filing Company", ""),
+                "State": fields.get("Impacted State", ""),
+                "Product_Line": product_line,
+                "Rate_Change_Type": fields.get("Rate Change Type", ""),
+                "Premium_Change_Number": rate_change_parsed,
+                "Premium_Change_Amount_Text": fields.get("Overall Rate Change", ""),
+                "Effective_Date": self._parse_date(
+                    fields.get("Effective Date")
+                    or fields.get("Effective Date (New)")
+                    or fields.get("Effective Date Requested (New)")
+                ),
+                "Previous_Increase_Date": self._parse_date(fields.get("Previous Increase Date")),
+                "Previous_Increase_Percentage": fields.get("Previous Increase Percentage", ""),
+                "Policyholders_Affected_Number": self._parse_number(
+                    fields.get("Policyholders Affected Number"), "Policyholders Affected Number"
+                ),
+                "Policyholders_Affected_Text": fields.get("Policyholders Affected Text", ""),
+                "Total_Written_Premium_Number": self._parse_number(
+                    fields.get("Total Written Premium Number"), "Total Written Premium Number"
+                ),
+                "Impact_Score": self._parse_number(fields.get("Impact Score"), "Impact Score"),
+                "Total_Written_Premium_Text": fields.get("Total Written Premium Text", ""),
+                "SERFF_Tracking_Number": fields.get("SERFF Tracking Number", ""),
+                "Specific_Coverages": fields.get("Specific Coverages", ""),
+                "Filing_Method": fields.get("Filing Method", ""),
+                "Current_Status": fields.get("Current Status", ""),
+                "Date_Submitted": self._parse_date(fields.get("Date Submitted")),
+                "Disposition_Date": self._parse_date(fields.get("Disposition Date")),
+                "Stated_Reasons": fields.get("Name", ""),
+                "Population": fields.get("Population", ""),
+                "Renewals_Date": self._parse_date(fields.get("Renewals Date")),
+                "Updated_At": datetime.now(),
+            }
+            data.append(row)
+
+        if parsing_errors:
+            logger.warning(f"Page {page_num}: {len(parsing_errors)} records with parsing errors")
+
+        df = pd.DataFrame(data)
+
+        with self.db.connection() as conn:
+            table_info = conn.execute("PRAGMA table_info(filings)").fetchall()
+            db_columns = [col[1] for col in table_info]
+            df_columns = [col for col in df.columns if col in db_columns]
+            df_filtered = df[df_columns].reset_index(drop=True)
+
+            pre_dedup = len(df_filtered)
+            df_filtered = df_filtered.drop_duplicates(subset=["Record_ID"], keep="last")
+            if pre_dedup - len(df_filtered):
+                logger.warning(
+                    f"Page {page_num}: removed {pre_dedup - len(df_filtered)} duplicate Record_IDs"
+                )
+
+            columns_str = ", ".join(df_columns)
+
+        # Remove existing records first using a separate short-lived connection
+        if not df_filtered.empty:
+            placeholders = ", ".join(["?"] * len(df_filtered))
+            self.db.execute(
+                f"DELETE FROM filings WHERE Record_ID IN ({placeholders})",
+                df_filtered["Record_ID"].tolist(),
+            )
+
+        with self.db.transaction() as conn:
+            conn.register("staging", df_filtered[df_columns])
+            try:
+                if not df_filtered.empty:
+                    conn.execute(
+                        f"INSERT INTO filings ({columns_str}) SELECT {columns_str} FROM staging"
+                    )
+                inserted = len(df_filtered)
+                db_total = conn.execute("SELECT COUNT(*) FROM filings").fetchone()[0]
+            finally:
+                conn.unregister("staging")
+
+        logger.info(f"Committed page {page_num} with {inserted} records")
+
+        return inserted, len(parsing_errors), db_total
 
     def _parse_number(self, value, field_name=""):
         """Safely parse numeric values, including percentages stored as decimals"""
