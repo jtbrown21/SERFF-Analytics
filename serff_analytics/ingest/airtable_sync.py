@@ -57,8 +57,12 @@ class AirtableSync:
             total_errors = 0
             all_dataframes: list[pd.DataFrame] = []
 
+            with self.db.connection() as conn:
+                table_info = conn.execute("PRAGMA table_info(filings)").fetchall()
+                db_columns = [col[1] for col in table_info]
+
             for page_num, page in enumerate(self._fetch_records(since), start=1):
-                df, errors = self._process_page(page, page_num)
+                df, errors = self._process_page(page, page_num, db_columns)
                 if not df.empty:
                     all_dataframes.append(df)
                 total_processed += len(page)
@@ -110,7 +114,7 @@ class AirtableSync:
             logger.error(traceback.format_exc())
             return {"success": False, "error": str(e)}
 
-    def _process_page(self, page: list[dict], page_num: int):
+    def _process_page(self, page: list[dict], page_num: int, db_columns: list[str]):
         """Convert a page of Airtable records to a DataFrame."""
         data: list[dict] = []
         parsing_errors: list[dict] = []
@@ -177,11 +181,8 @@ class AirtableSync:
 
         df = pd.DataFrame(data)
 
-        with self.db.connection() as conn:
-            table_info = conn.execute("PRAGMA table_info(filings)").fetchall()
-            db_columns = [col[1] for col in table_info]
-            df_columns = [col for col in df.columns if col in db_columns]
-            df_filtered = df[df_columns].reset_index(drop=True)
+        df_columns = [col for col in df.columns if col in db_columns]
+        df_filtered = df[df_columns].reset_index(drop=True)
 
         logger.info(f"Fetched page {page_num} with {len(df_filtered)} records")
 
