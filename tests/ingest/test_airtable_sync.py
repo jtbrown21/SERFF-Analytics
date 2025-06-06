@@ -40,7 +40,9 @@ def test_sync_only_updated_records(monkeypatch, db_path):
     args, kwargs = mock_iterate.call_args
     assert kwargs["page_size"] == 100
     assert "filter_by_formula" in kwargs
-    assert since.isoformat() in kwargs["filter_by_formula"]
+    formula = kwargs["filter_by_formula"]
+    assert since.isoformat() in formula
+    assert "{Last Modified}" in formula
 
     assert result["records_inserted"] == 2
     with sync.db.connection() as conn:
