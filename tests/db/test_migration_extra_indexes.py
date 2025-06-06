@@ -48,7 +48,8 @@ def test_migration_drops_extra_indexes(tmp_path):
             for row in conn.execute("PRAGMA table_info('filings')").fetchall()
         }
         assert info["Premium_Change_Number"].upper() == "DECIMAL(10,4)"
-        assert info["Previous_Increase_Percentage"].upper().startswith("VARCHAR")
+        assert "Previous_Increase_Number" in info
+        assert info["Previous_Increase_Number"].upper().startswith("DECIMAL")
         indexes = {
             row[0]
             for row in conn.execute(
