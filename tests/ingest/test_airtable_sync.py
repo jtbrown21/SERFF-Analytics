@@ -48,7 +48,7 @@ def test_sync_only_updated_records(monkeypatch, db_path):
     assert count == 2
 
 
-def test_sync_deduplicates_record_id(monkeypatch, db_path):
+def test_sync_fails_on_duplicate_ids(monkeypatch, db_path):
     pages = [[make_record("dup", 0.1), make_record("dup", 0.1)]]
 
     mock_iterate = MagicMock(return_value=iter(pages))
@@ -61,10 +61,10 @@ def test_sync_deduplicates_record_id(monkeypatch, db_path):
     sync = AirtableSync()
     result = sync.sync_data()
 
-    assert result["records_inserted"] == 1
+    assert not result["success"]
     with sync.db.connection() as conn:
         count = conn.execute("SELECT COUNT(*) FROM filings").fetchone()[0]
-    assert count == 1
+    assert count == 0
 
 
 def test_temp_table_removed(monkeypatch, db_path):
@@ -87,7 +87,7 @@ def test_temp_table_removed(monkeypatch, db_path):
         assert tmp_exists == 0
 
 
-def test_sync_temp_swap_handles_updates(monkeypatch, db_path):
+def test_sync_fails_when_duplicate_ids_across_pages(monkeypatch, db_path):
     pages = [
         [make_record("upd", 0.1)],
         [make_record("upd", 0.2)],
@@ -103,15 +103,13 @@ def test_sync_temp_swap_handles_updates(monkeypatch, db_path):
     sync = AirtableSync()
     result = sync.sync_data()
 
-    assert result["records_inserted"] == 2
+    assert not result["success"]
     with sync.db.connection() as conn:
-        row = conn.execute(
-            "SELECT Premium_Change_Number FROM filings WHERE Record_ID='upd'"
-        ).fetchone()
-    assert float(row[0]) == pytest.approx(0.2)
+        count = conn.execute("SELECT COUNT(*) FROM filings WHERE Record_ID='upd'").fetchone()[0]
+    assert count == 0
 
 
-def test_streaming_commits_each_page(monkeypatch, db_path):
+def test_sync_uses_single_transaction(monkeypatch, db_path):
     pages = [[make_record("a", 0.1)], [make_record("b", 0.2)]]
 
     mock_iterate = MagicMock(return_value=iter(pages))
@@ -135,4 +133,4 @@ def test_streaming_commits_each_page(monkeypatch, db_path):
     result = sync.sync_data()
 
     assert result["records_inserted"] == 2
-    assert len(calls) == len(pages)
+    assert len(calls) == 1
