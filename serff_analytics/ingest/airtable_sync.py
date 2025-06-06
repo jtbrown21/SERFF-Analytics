@@ -35,11 +35,13 @@ class AirtableSync:
         """Call Airtable API methods with retries."""
         return func(*args, **kwargs)
 
+    LAST_MODIFIED_FIELD = "Last Modified"
+
     def _fetch_records(self, since: datetime | None = None):
         """Stream records from Airtable page by page."""
         params: dict[str, str] = {}
         if since:
-            params["filter_by_formula"] = f"LAST_MODIFIED_TIME() > '{since.isoformat()}'"
+            params["filter_by_formula"] = f"{{{self.LAST_MODIFIED_FIELD}}} > '{since.isoformat()}'"
 
         try:
             for page in self._safe_call(self.table.iterate, page_size=100, **params):
