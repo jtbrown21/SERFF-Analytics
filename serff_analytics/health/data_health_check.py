@@ -238,7 +238,7 @@ class SimpleDataHealthCheck:
                 Premium_Change_Amount_Text,
                 Effective_Date,
                 Previous_Increase_Date,
-                Previous_Increase_Percentage,
+                Previous_Increase_Number,
                 Policyholders_Affected_Number,
                 Policyholders_Affected_Text,
                 Total_Written_Premium_Number,
@@ -256,7 +256,7 @@ class SimpleDataHealthCheck:
             GROUP BY
                 Company, Subsidiary, State, Product_Line, Rate_Change_Type,
                 Premium_Change_Number, Premium_Change_Amount_Text, Effective_Date,
-                Previous_Increase_Date, Previous_Increase_Percentage,
+                Previous_Increase_Date, Previous_Increase_Number,
                 Policyholders_Affected_Number, Policyholders_Affected_Text,
                 Total_Written_Premium_Number, Total_Written_Premium_Text,
                 SERFF_Tracking_Number, Specific_Coverages, Stated_Reasons,

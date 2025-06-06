@@ -65,22 +65,41 @@ class DatabaseManager:
         try:
             with self.connection() as conn:
                 info = conn.execute("PRAGMA table_info('filings')").fetchall()
-                for row in info:
-                    if row[1] == "Premium_Change_Number" and row[2].upper() == "DECIMAL(10,2)":
-                        # Drop all dependent indexes before altering the column type
-                        self._drop_all_indexes(conn)
-                        conn.execute(
-                            "ALTER TABLE filings ALTER COLUMN Premium_Change_Number SET DATA TYPE DECIMAL(10,4)"
-                        )
-                        logger.info("Migrated Premium_Change_Number to DECIMAL(10,4)")
-                    if row[1] == "Previous_Increase_Percentage" and not row[2].upper().startswith(
-                        "VARCHAR"
-                    ):
-                        self._drop_all_indexes(conn)
-                        conn.execute(
-                            "ALTER TABLE filings ALTER COLUMN Previous_Increase_Percentage SET DATA TYPE VARCHAR"
-                        )
-                        logger.info("Migrated Previous_Increase_Percentage to VARCHAR")
+                columns = {row[1]: row[2] for row in info}
+
+                if (
+                    "Premium_Change_Number" in columns
+                    and columns["Premium_Change_Number"].upper() == "DECIMAL(10,2)"
+                ):
+                    self._drop_all_indexes(conn)
+                    conn.execute(
+                        "ALTER TABLE filings ALTER COLUMN Premium_Change_Number SET DATA TYPE DECIMAL(10,4)"
+                    )
+                    logger.info("Migrated Premium_Change_Number to DECIMAL(10,4)")
+
+                if "Previous_Increase_Number" in columns and columns[
+                    "Previous_Increase_Number"
+                ].upper().startswith("VARCHAR"):
+                    self._drop_all_indexes(conn)
+                    conn.execute(
+                        "ALTER TABLE filings ALTER COLUMN Previous_Increase_Number SET DATA TYPE DECIMAL(10,4)"
+                    )
+                    logger.info("Migrated Previous_Increase_Number to DECIMAL(10,4)")
+
+                if (
+                    "Previous_Increase_Percentage" in columns
+                    and "Previous_Increase_Number" not in columns
+                ):
+                    self._drop_all_indexes(conn)
+                    conn.execute(
+                        "ALTER TABLE filings RENAME COLUMN Previous_Increase_Percentage TO Previous_Increase_Number"
+                    )
+                    conn.execute(
+                        "ALTER TABLE filings ALTER COLUMN Previous_Increase_Number SET DATA TYPE DECIMAL(10,4)"
+                    )
+                    logger.info(
+                        "Renamed Previous_Increase_Percentage to Previous_Increase_Number and converted to DECIMAL(10,4)"
+                    )
         except duckdb.CatalogException:
             # Table doesn't exist yet; it will be created below
             pass
@@ -99,7 +118,7 @@ class DatabaseManager:
                 Premium_Change_Amount_Text VARCHAR,
                 Effective_Date DATE,
                 Previous_Increase_Date DATE,
-                Previous_Increase_Percentage VARCHAR,
+                Previous_Increase_Number DECIMAL(10,4),
                 Policyholders_Affected_Number INTEGER,
                 Policyholders_Affected_Text VARCHAR,
                 Total_Written_Premium_Number DECIMAL(15,2),
@@ -137,6 +156,7 @@ class DatabaseManager:
         - Premium_Change_Number: Percentage change (from 'Overall Rate Change Number')
         - Effective_Date: When the rate change takes effect
         - Previous_Increase_Date: Date of last increase
+        - Previous_Increase_Number: Previous increase amount
         - Policyholders_Affected_Number: Number of affected policyholders
         - Total_Written_Premium_Number: Total premium amount
         - SERFF_Tracking_Number: Regulatory tracking number

@@ -125,7 +125,9 @@ class AirtableSync:
                     or fields.get("Effective Date Requested (New)")
                 ),
                 "Previous_Increase_Date": self._parse_date(fields.get("Previous Increase Date")),
-                "Previous_Increase_Percentage": fields.get("Previous Increase Percentage", ""),
+                "Previous_Increase_Number": self._parse_number(
+                    fields.get("Previous Increase Number"), "Previous Increase Number"
+                ),
                 "Policyholders_Affected_Number": self._parse_number(
                     fields.get("Policyholders Affected Number"), "Policyholders Affected Number"
                 ),
@@ -325,7 +327,7 @@ class AirtableSync:
         """Validate all numeric fields in the dataset"""
         numeric_fields = [
             "Overall Rate Change Number",
-            "Previous Increase Percentage",
+            "Previous Increase Number",
             "Policyholders Affected Number",
             "Total Written Premium Number",
             "Impact Score",

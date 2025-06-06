@@ -456,7 +456,7 @@ class AgentIntelligenceReport:
                 SUM(Policyholders_Affected_Number) as policies_affected,
                 AVG(Impact_Score) as avg_impact_score,
                 MAX(Previous_Increase_Date) as last_increase_date,
-                MAX(Previous_Increase_Percentage) as last_increase,
+                MAX(Previous_Increase_Number) * 100 as last_increase,
                 STRING_AGG(DISTINCT Product_Line, ', ') as product_lines
             FROM filings
             WHERE State = '{state}'
