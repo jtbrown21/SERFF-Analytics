@@ -71,20 +71,26 @@ class AirtableSync:
             with self.db.transaction() as conn:
                 inserted = 0
                 if not combined_df.empty:
-                    columns_str = ", ".join(combined_df.columns)
-                    placeholders = ", ".join(["?"] * len(combined_df))
-                    conn.execute(
-                        f"DELETE FROM filings WHERE Record_ID IN ({placeholders})",
-                        combined_df["Record_ID"].tolist(),
-                    )
-                    conn.register("staging", combined_df)
+                    conn.register("airtable_import", combined_df)
                     try:
                         conn.execute(
-                            f"INSERT INTO filings ({columns_str}) SELECT {columns_str} FROM staging"
+                            """
+                            DELETE FROM filings
+                            WHERE Record_ID IN (
+                                SELECT Record_ID FROM airtable_import
+                            )
+                            """
+                        )
+                        conn.execute(
+                            """
+                            INSERT INTO filings
+                            SELECT * FROM airtable_import
+                            """
                         )
                         inserted = len(combined_df)
                     finally:
-                        conn.unregister("staging")
+                        conn.unregister("airtable_import")
+
                 db_total_records = conn.execute("SELECT COUNT(*) FROM filings").fetchone()[0]
 
             logger.info(f"Sync completed. Total records in database: {db_total_records}")
@@ -168,6 +174,7 @@ class AirtableSync:
                 "Stated_Reasons": fields.get("Name", ""),
                 "Population": fields.get("Population", ""),
                 "Renewals_Date": self._parse_date(fields.get("Renewals Date")),
+                "Created_At": datetime.now(),
                 "Updated_At": datetime.now(),
             }
             data.append(row)
@@ -180,7 +187,7 @@ class AirtableSync:
         with self.db.connection() as conn:
             table_info = conn.execute("PRAGMA table_info(filings)").fetchall()
             db_columns = [col[1] for col in table_info]
-            df_columns = [col for col in df.columns if col in db_columns]
+            df_columns = [col for col in db_columns if col in df.columns]
             df_filtered = df[df_columns].reset_index(drop=True)
 
         logger.info(f"Fetched page {page_num} with {len(df_filtered)} records")
