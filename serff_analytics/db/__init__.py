@@ -100,6 +100,10 @@ class DatabaseManager:
                     logger.info(
                         "Renamed Previous_Increase_Percentage to Previous_Increase_Number and converted to DECIMAL(10,4)"
                     )
+
+                if "Airtable_Last_Modified" not in columns:
+                    conn.execute("ALTER TABLE filings ADD COLUMN Airtable_Last_Modified TIMESTAMP")
+                    logger.info("Added Airtable_Last_Modified column")
         except duckdb.CatalogException:
             # Table doesn't exist yet; it will be created below
             pass
@@ -129,6 +133,7 @@ class DatabaseManager:
                 Population VARCHAR,
                 Impact_Score DECIMAL(10,2),
                 Renewals_Date DATE,
+                Airtable_Last_Modified TIMESTAMP,
                 Created_At TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 Updated_At TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -160,4 +165,5 @@ class DatabaseManager:
         - Policyholders_Affected_Number: Number of affected policyholders
         - Total_Written_Premium_Number: Total premium amount
         - SERFF_Tracking_Number: Regulatory tracking number
+        - Airtable_Last_Modified: Timestamp of last change in Airtable
         """
