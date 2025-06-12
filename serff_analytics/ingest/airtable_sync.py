@@ -83,11 +83,9 @@ class AirtableSync:
                             )
                             """
                         )
+                        columns = ", ".join(combined_df.columns)
                         conn.execute(
-                            """
-                            INSERT INTO filings
-                            SELECT * FROM airtable_import
-                            """
+                            f"INSERT INTO filings ({columns}) SELECT {columns} FROM airtable_import"
                         )
                         inserted = len(combined_df)
                     finally:
