@@ -136,6 +136,19 @@ class AirtableSync:
         for record in page:
             fields = record["fields"]
 
+            # Parse the Last Modified field
+            last_modified = None
+            airtable_date = fields.get("Last Modified")
+
+            if airtable_date:
+                try:
+                    # Parse format: "5/14/2025 1:35pm"
+                    last_modified = datetime.strptime(airtable_date, "%m/%d/%Y %I:%M%p")
+                except ValueError:
+                    logger.warning(
+                        f"Could not parse date: {airtable_date} for record {record['id']}"
+                    )
+
             product_line = fields.get("Product Line", "")
             rate_change_raw = fields.get("Overall Rate Change Number")
             rate_change_parsed = self._parse_number(rate_change_raw, "Overall Rate Change Number")
@@ -186,6 +199,7 @@ class AirtableSync:
                 "Stated_Reasons": fields.get("Name", ""),
                 "Population": fields.get("Population", ""),
                 "Renewals_Date": self._parse_date(fields.get("Renewals Date")),
+                "Airtable_Last_Modified": last_modified,
                 "Created_At": datetime.now(),
                 "Updated_At": datetime.now(),
             }
