@@ -21,6 +21,7 @@ reports/
 !serff_analytics/reports/
 *.db
 *.log
+local/
 
 # OS
 .DS_Store
