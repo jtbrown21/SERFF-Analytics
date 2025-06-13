@@ -1,7 +1,8 @@
 import pandas as pd
 from pyairtable import Table
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
+import traceback
 from tenacity import (
     retry,
     wait_exponential,
@@ -83,13 +84,54 @@ class AirtableSync:
                 if not combined_df.empty:
                     conn.register("airtable_import", combined_df)
                     try:
-                        columns = ", ".join(combined_df.columns)
+                        # Use INSERT ON CONFLICT for conditional updates
                         conn.execute(
-                            f"INSERT OR REPLACE INTO filings ({columns}) SELECT {columns} FROM airtable_import"
+                            """
+    INSERT INTO filings 
+    SELECT * FROM airtable_import
+    ON CONFLICT (Record_ID) DO UPDATE SET
+        Company = EXCLUDED.Company,
+        Subsidiary = EXCLUDED.Subsidiary,
+        State = EXCLUDED.State,
+        Product_Line = EXCLUDED.Product_Line,
+        Rate_Change_Type = EXCLUDED.Rate_Change_Type,
+        Premium_Change_Number = EXCLUDED.Premium_Change_Number,
+        Premium_Change_Amount_Text = EXCLUDED.Premium_Change_Amount_Text,
+        Effective_Date = EXCLUDED.Effective_Date,
+        Previous_Increase_Date = EXCLUDED.Previous_Increase_Date,
+        Previous_Increase_Number = EXCLUDED.Previous_Increase_Number,
+        Policyholders_Affected_Number = EXCLUDED.Policyholders_Affected_Number,
+        Policyholders_Affected_Text = EXCLUDED.Policyholders_Affected_Text,
+        Total_Written_Premium_Number = EXCLUDED.Total_Written_Premium_Number,
+        Total_Written_Premium_Text = EXCLUDED.Total_Written_Premium_Text,
+        SERFF_Tracking_Number = EXCLUDED.SERFF_Tracking_Number,
+        Specific_Coverages = EXCLUDED.Specific_Coverages,
+        Stated_Reasons = EXCLUDED.Stated_Reasons,
+        Population = EXCLUDED.Population,
+        Impact_Score = EXCLUDED.Impact_Score,
+        Renewals_Date = EXCLUDED.Renewals_Date,
+        Airtable_Last_Modified = EXCLUDED.Airtable_Last_Modified,
+        Updated_At = NOW()
+    WHERE 
+        filings.Airtable_Last_Modified IS NULL 
+        OR filings.Airtable_Last_Modified < EXCLUDED.Airtable_Last_Modified
+                            """
                         )
                         inserted = len(combined_df)
                     finally:
                         conn.unregister("airtable_import")
+
+                # Log this sync
+                try:
+                    conn.execute(
+                        """
+        INSERT INTO sync_history (sync_id, records_processed, status, completed_at)
+        VALUES (nextval('sync_history_seq'), ?, 'completed', CURRENT_TIMESTAMP)
+                        """,
+                        [total_processed],
+                    )
+                except:
+                    pass  # Don't fail if logging fails
 
                 db_total_records = conn.execute("SELECT COUNT(*) FROM filings").fetchone()[0]
 
