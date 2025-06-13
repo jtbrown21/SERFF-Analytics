@@ -70,28 +70,40 @@ class AirtableSync:
                 pd.concat(all_dataframes, ignore_index=True) if all_dataframes else pd.DataFrame()
             )
 
+            # Drop indexes outside the transaction to avoid DuckDB upsert issues
+            with self.db.connection() as conn:
+                indexes = conn.execute(
+                    "SELECT index_name FROM duckdb_indexes() WHERE table_name='filings'"
+                ).fetchall()
+                for (idx,) in indexes:
+                    conn.execute(f'DROP INDEX IF EXISTS "{idx}"')
+
             with self.db.transaction() as conn:
                 inserted = 0
                 if not combined_df.empty:
                     conn.register("airtable_import", combined_df)
                     try:
-                        conn.execute(
-                            """
-                            DELETE FROM filings
-                            WHERE Record_ID IN (
-                                SELECT Record_ID FROM airtable_import
-                            )
-                            """
-                        )
                         columns = ", ".join(combined_df.columns)
                         conn.execute(
-                            f"INSERT INTO filings ({columns}) SELECT {columns} FROM airtable_import"
+                            f"INSERT OR REPLACE INTO filings ({columns}) SELECT {columns} FROM airtable_import"
                         )
                         inserted = len(combined_df)
                     finally:
                         conn.unregister("airtable_import")
 
                 db_total_records = conn.execute("SELECT COUNT(*) FROM filings").fetchone()[0]
+
+            # Recreate indexes after upsert
+            with self.db.connection() as conn:
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_state_product ON filings(State, Product_Line)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_company ON filings(Company, Subsidiary)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_effective_date ON filings(Effective_Date)"
+                )
 
             logger.info(f"Sync completed. Total records in database: {db_total_records}")
 
