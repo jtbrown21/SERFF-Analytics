@@ -212,6 +212,8 @@ python -m src.monthly_workflow <command> [--dry-run]
 | `generate`| Build HTML reports for all states with activity and log them to Airtable. |
 | `send`    | Email all `Approved` reports to subscribers via Postmark.                 |
 | `--dry-run`| Optional flag that prints actions without writing files or sending emails. |
+| `--test, -t`| Enable test mode (process single item only) |
+| `--test-item, -i [ITEM]`| Specify which item to process in test mode |
 
 ### Examples
 
@@ -267,6 +269,45 @@ Database (DuckDB) --> state_newsletter.py --> HTML Report --> GitHub Pages
                                                     v
                                             Webhook (tracking updates)
 ```
+
+## Testing
+
+The script includes a test mode for local development and debugging:
+
+### Basic Test Mode
+Run with a single report/email (processes first item):
+```bash
+python monthly_workflow.py --test
+```
+
+### Test Specific Item
+Process a specific report or recipient:
+```bash
+python monthly_workflow.py --test --test-item "client_name"
+```
+
+### Test Mode Features
+- Processes only one item instead of all items
+- Adds [TEST] prefix to outputs and logs
+- Maintains all normal functionality but with limited scope
+- Safe for local development without affecting production
+
+### Testing Examples
+
+1. Test report generation for first client:
+   ```bash
+   python monthly_workflow.py --test
+   ```
+
+2. Test email sending for specific client:
+   ```bash
+   python monthly_workflow.py --test --test-item "acme_corp"
+   ```
+
+3. Full test run (generate and send for one item):
+   ```bash
+   python monthly_workflow.py --test --generate --send
+   ```
 
 ## Key Python Modules
 

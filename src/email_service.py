@@ -174,6 +174,8 @@ class Newsletter:
             recipients = [{"fields": {"Email": email}} for email in recipients]
 
         subject = f"{state} Insurance Market Update - {month} {year}"
+        if test_mode:
+            subject = f"[TEST] {subject}"
         html_body = self._build_content(report_url, report_path)
 
         results = {"sent": [], "failed": [], "invalid": []}
