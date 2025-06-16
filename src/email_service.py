@@ -45,7 +45,7 @@ def send_newsletter(state, month, year, report_url, recipients):
             To=email,
             Subject=subject,
             HtmlBody=html_body,
-            MessageStream='outbound'
+            MessageStream='broadcast'
         )
         responses.append(response)
         print(f"  ✓ Sent to {email}")
@@ -88,7 +88,7 @@ def send_newsletter_batch(state, month, year, report_url, recipients):
             'To': email,
             'Subject': subject,
             'HtmlBody': html_body,
-            'MessageStream': 'outbound'
+            'MessageStream': 'broadcast'
         })
     
     # Send batch (max 500 per batch in Postmark)
@@ -141,7 +141,7 @@ def send_newsletter_embedded(state, month, year, report_path, recipients):
             To=email,
             Subject=subject,
             HtmlBody=report_html,  # Full report as email body
-            MessageStream='outbound'
+            MessageStream='broadcast'
         )
         responses.append(response)
         print(f"  ✓ Sent embedded report to {email}")
@@ -277,7 +277,7 @@ def send_newsletter_embedded_with_subscriber_tracking(state, month, year, report
                 To=subscriber_email,
                 Subject=subject,
                 HtmlBody=personalized_html,  # <-- NOW USES PERSONALIZED VERSION
-                MessageStream='outbound',
+                MessageStream='broadcast',
                Headers={
                         "List-Unsubscribe": f"<https://taking-rate-postmark-webhook.onrender.com/unsubscribe?id={subscriber_id}&token={token}>"
                 }
@@ -354,7 +354,7 @@ def send_newsletter_embedded_batch_with_tracking(state, month, year, report_path
             'To': email,
             'Subject': subject,
             'HtmlBody': report_html,
-            'MessageStream': 'outbound'
+            'MessageStream': 'broadcast'
         })
     
     # Send batch

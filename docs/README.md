@@ -62,21 +62,6 @@ GITHUB_REPO_NAME=insurance-analytics
 UNSUBSCRIBE_SECRET=your-secret-key
 ```
 
-### Creating or Syncing the Database
-
-The project stores data in a DuckDB file at `serff_analytics/data/insurance_filings.db`. If the
-`serff_analytics/data` folder is missing, it will be created automatically when you run the sync
-tool.
-
-1. Set your Airtable credentials as environment variables (see
-   `serff_analytics/config.py` for variable names).
-2. Run the sync script to create the database and load data:
-```bash
-python -m scripts/sync_demo
-```
-Follow the prompt to run a full sync. This will initialize the database schema
-and pull all records from Airtable.
-
 ## Newsletter Workflow
 
 ### Monthly Newsletter System
@@ -277,16 +262,7 @@ Reports are automatically available when pushed to the `/docs` folder.
 3. Add environment variables
 4. Use the public URL for Postmark webhooks
 
-## Troubleshooting
 
-### Database Issues
-If you encounter an error like `duckdb.duckdb.IOException: IO Error: Cannot open file` when generating reports, the database file is likely missing. Run `python scripts/sync_demo.py` to create the database and pull data from Airtable.
-
-Older installations may store `Premium_Change_Number` with only two decimal places. The current schema uses four decimal places. Any script that initializes `DatabaseManager` will automatically apply the following migration:
-
-```sql
-ALTER TABLE filings ALTER COLUMN Premium_Change_Number SET DATA TYPE DECIMAL(10,4);
-```
 
 ### Email Issues
 - Check Postmark dashboard for delivery status
