@@ -40,8 +40,17 @@ def _state_has_activity(state: str, month: str, year: str) -> bool:
         return False
 
 
-def generate_all_reports(dry_run: bool = False) -> None:
-    """Generate reports for all states with activity"""
+def generate_all_reports(
+    dry_run: bool = False,
+    test_mode: bool = False,
+    test_item: str | None = None,
+) -> None:
+    """Generate reports for all states with activity.
+
+    When ``test_mode`` is enabled only a single report will be processed.
+    The ``test_item`` argument can be used to specify which state to
+    generate. If not provided, the first state in ``ALL_STATES`` is used.
+    """
     month, year = get_current_month_year()
     manager = ReportManager()
 
@@ -51,18 +60,26 @@ def generate_all_reports(dry_run: bool = False) -> None:
 
     base_dir = Path(os.getenv("NEWSLETTERS_DIR", "docs/newsletters/monthly/19.0"))
 
-    for state in ALL_STATES:
+    states = ALL_STATES
+    if test_mode:
+        state = test_item or ALL_STATES[0]
+        states = [state]
+        logger.info("TEST MODE: Generating only report %s", state)
+
+    prefix = "[TEST] " if test_mode else ""
+
+    for state in states:
         existing = manager.get_report_by_state_month_year(state, month, year)
         if existing:
-            logger.info("⏭️  %s: Report already exists", state)
+            logger.info("%s⏭️  %s: Report already exists", prefix, state)
             continue
 
         if not _state_has_activity(state, month, year):
-            logger.info("⏭️  %s: No activity this month", state)
+            logger.info("%s⏭️  %s: No activity this month", prefix, state)
             continue
 
         try:
-            logger.info("📄 Generating %s...", state)
+            logger.info("%s📄 Generating %s...", prefix, state)
 
             if not dry_run:
                 state_abbr = normalize_state_abbr(state)
@@ -96,15 +113,15 @@ def generate_all_reports(dry_run: bool = False) -> None:
                 except Exception:
                     logger.exception("Failed to log report for %s", state)
 
-                logger.info("✓ Generated %s", state)
+                logger.info("%s✓ Generated %s", prefix, state)
                 generated_count += 1
             else:
-                logger.info("[DRY RUN] Would generate %s", state)
+                logger.info("%s[DRY RUN] Would generate %s", prefix, state)
 
         except Exception:
-            logger.exception("Error generating report for %s", state)
+            logger.exception("%sError generating report for %s", prefix, state)
 
-    logger.info("✓ Generated %d reports", generated_count)
+    logger.info("%s✓ Generated %d reports", prefix, generated_count)
 
     if generated_count > 0 and not dry_run:
         subprocess.run(["git", "commit", "-m", f"Add {month} {year} reports"], check=False)

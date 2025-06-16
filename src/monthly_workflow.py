@@ -21,6 +21,7 @@ before running any commands.
 
 import sys
 import logging
+import argparse
 from dotenv import load_dotenv
 
 from src.generate_reports import generate_all_reports
@@ -35,24 +36,42 @@ if not check_required_env_vars():
     sys.exit(1)
 
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python -m src.monthly_workflow {generate|send} [--dry-run]")
-        return
+def is_test_mode(args: argparse.Namespace) -> bool:
+    """Return True if the CLI is running in test mode."""
+    return getattr(args, "test", False)
 
-    command = sys.argv[1]
-    dry_run = "--dry-run" in sys.argv
 
-    if dry_run:
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Monthly newsletter workflow")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    gen = subparsers.add_parser("generate", help="Generate monthly reports")
+    gen.add_argument("--dry-run", action="store_true")
+    gen.add_argument("-t", "--test", action="store_true", help="Enable test mode")
+    gen.add_argument("-i", "--test-item", help="Process a single item in test mode")
+
+    send = subparsers.add_parser("send", help="Send approved reports")
+    send.add_argument("--dry-run", action="store_true")
+    send.add_argument("-t", "--test", action="store_true", help="Enable test mode")
+    send.add_argument("-i", "--test-item", help="Process a single item in test mode")
+
+    args = parser.parse_args()
+
+    if args.dry_run:
         print("🔍 DRY RUN MODE - No changes will be made\n")
 
-    if command == "generate":
-        generate_all_reports(dry_run)
-    elif command == "send":
-        send_approved_reports(dry_run)
-    else:
-        print(f"Unknown command: {command}")
-        print("Use 'generate' or 'send'")
+    if args.command == "generate":
+        generate_all_reports(
+            dry_run=args.dry_run,
+            test_mode=is_test_mode(args),
+            test_item=args.test_item,
+        )
+    elif args.command == "send":
+        send_approved_reports(
+            dry_run=args.dry_run,
+            test_mode=is_test_mode(args),
+            test_item=args.test_item,
+        )
 
 
 if __name__ == "__main__":
