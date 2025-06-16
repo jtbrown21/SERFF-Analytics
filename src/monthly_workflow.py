@@ -1,4 +1,23 @@
-"""Command line entry for monthly newsletter workflow."""
+"""Monthly newsletter workflow CLI.
+
+Run ``python -m src.monthly_workflow <command> [--dry-run]`` from the project
+root to orchestrate the monthly newsletter process.
+
+Commands
+========
+``generate``
+    Build newsletter reports for all states with filing activity and log them to
+    Airtable.
+
+``send``
+    Send all "Approved" reports to subscribers via Postmark.
+
+Passing ``--dry-run`` performs a full simulation without writing files or
+sending emails.
+
+The environment variables listed in ``docs/README.md`` must be configured
+before running any commands.
+"""
 
 import sys
 import logging
@@ -18,7 +37,7 @@ if not check_required_env_vars():
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python -m src.monthly_workflow [generate|send] [--dry-run]")
+        print("Usage: python -m src.monthly_workflow {generate|send} [--dry-run]")
         return
 
     command = sys.argv[1]
