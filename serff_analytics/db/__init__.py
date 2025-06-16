@@ -145,6 +145,26 @@ class DatabaseManager:
         self.execute("CREATE INDEX IF NOT EXISTS idx_company ON filings(Company, Subsidiary)")
         self.execute("CREATE INDEX IF NOT EXISTS idx_effective_date ON filings(Effective_Date)")
 
+        # Create sync history table for tracking sync operations
+        self.execute(
+            """
+            CREATE TABLE IF NOT EXISTS sync_history (
+                sync_id INTEGER PRIMARY KEY,
+                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                completed_at TIMESTAMP,
+                sync_mode VARCHAR(50),
+                status VARCHAR(50) DEFAULT 'running',
+                records_processed INTEGER,
+                records_inserted INTEGER,
+                records_updated INTEGER,
+                records_skipped INTEGER,
+                parsing_errors INTEGER,
+                error_message VARCHAR
+            )
+            """
+        )
+        self.execute("CREATE SEQUENCE IF NOT EXISTS sync_history_seq START 1")
+
         logger.info("Database initialized successfully")
 
     def get_schema_context(self):

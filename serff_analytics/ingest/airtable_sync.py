@@ -42,7 +42,7 @@ class AirtableSync:
         """Stream records from Airtable page by page."""
         params: dict[str, str] = {}
         if since:
-            params["formula"] = f"{{{self.LAST_MODIFIED_FIELD}}} > '{since.isoformat()}'"
+            params["filter_by_formula"] = f"{{{self.LAST_MODIFIED_FIELD}}} > '{since.isoformat()}'"
 
         try:
             for page in self._safe_call(self.table.iterate, page_size=100, **params):
@@ -54,35 +54,40 @@ class AirtableSync:
     def sync_data(self, since: datetime | None = None):
         """Sync data from Airtable to DuckDB - only updates modified records"""
         sync_id = None
-        sync_mode = 'manual' if since else None
+        sync_mode = "manual" if since else None
 
         try:
             # Initialize sync tracking
-            with self.db.transaction() as conn:
+            with self.db.connection() as conn:
                 # Get last successful sync FIRST
-                last_sync_result = conn.execute("""
+                last_sync_result = conn.execute(
+                    """
                     SELECT completed_at 
                     FROM sync_history 
                     WHERE status = 'completed' 
                     ORDER BY completed_at DESC 
                     LIMIT 1
-                """).fetchone()
+                """
+                ).fetchone()
 
                 # Determine sync mode based on history
                 if since:
-                    sync_mode = 'manual'
+                    sync_mode = "manual"
                 elif last_sync_result and last_sync_result[0]:
-                    sync_mode = 'incremental'
+                    sync_mode = "incremental"
                     since = last_sync_result[0] - timedelta(minutes=5)
                 else:
-                    sync_mode = 'full'
+                    sync_mode = "full"
 
                 # Now create sync record with correct mode
                 sync_id = conn.execute("SELECT nextval('sync_history_seq')").fetchone()[0]
-                conn.execute("""
-                    INSERT INTO sync_history (sync_id, started_at, status, sync_mode) 
+                conn.execute(
+                    """
+                    INSERT INTO sync_history (sync_id, started_at, status, sync_mode)
                     VALUES (?, CURRENT_TIMESTAMP, 'running', ?)
-                """, [sync_id, sync_mode])
+                    """,
+                    [sync_id, sync_mode],
+                )
 
             logger.info(f"Starting Airtable sync... (mode: {sync_mode}, since: {since})")
 
@@ -104,7 +109,26 @@ class AirtableSync:
                 pd.concat(all_dataframes, ignore_index=True) if all_dataframes else pd.DataFrame()
             )
 
-            logger.info(f"Fetched {total_processed} records, combined into {len(combined_df)} for processing")
+            logger.info(
+                f"Fetched {total_processed} records, combined into {len(combined_df)} for processing"
+            )
+
+            # Detect duplicate Record_IDs before modifying the database
+            if not combined_df.empty and combined_df["Record_ID"].duplicated().any():
+                logger.error("Duplicate Record_ID values detected in fetched data")
+                if sync_id:
+                    with self.db.connection() as conn:
+                        conn.execute(
+                            """
+                            UPDATE sync_history
+                            SET status = 'failed',
+                                completed_at = CURRENT_TIMESTAMP,
+                                error_message = 'Duplicate Record_ID values'
+                            WHERE sync_id = ?
+                            """,
+                            [sync_id],
+                        )
+                return {"success": False, "error": "duplicate_record_id"}
 
             # Drop indexes outside the transaction to avoid DuckDB upsert issues
             with self.db.connection() as conn:
@@ -124,7 +148,8 @@ class AirtableSync:
                     conn.register("airtable_import", combined_df)
                     try:
                         # UPSERT with conditional update
-                        conn.execute("""
+                        conn.execute(
+                            """
                             INSERT INTO filings 
                             SELECT * FROM airtable_import
                             ON CONFLICT (Record_ID) DO UPDATE SET
@@ -153,11 +178,12 @@ class AirtableSync:
                             WHERE 
                                 filings.Airtable_Last_Modified IS NULL 
                                 OR filings.Airtable_Last_Modified < EXCLUDED.Airtable_Last_Modified
-                        """)
+                        """
+                        )
 
                         # For now, approximate the counts
                         # In incremental mode, most will be skipped
-                        if sync_mode == 'incremental':
+                        if sync_mode == "incremental":
                             # Rough estimate: assume most are skipped
                             updated = min(len(combined_df), 100)  # Assume at most 100 updates
                             skipped = len(combined_df) - updated
@@ -175,7 +201,8 @@ class AirtableSync:
 
                 # Update sync history with results
                 if sync_id:
-                    conn.execute("""
+                    conn.execute(
+                        """
                         UPDATE sync_history 
                         SET completed_at = CURRENT_TIMESTAMP,
                             records_processed = ?,
@@ -185,13 +212,21 @@ class AirtableSync:
                             parsing_errors = ?,
                             status = 'completed'
                         WHERE sync_id = ?
-                    """, [total_processed, inserted, updated, skipped, total_errors, sync_id])
+                    """,
+                        [total_processed, inserted, updated, skipped, total_errors, sync_id],
+                    )
 
             # Recreate indexes
             with self.db.connection() as conn:
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_company ON filings(Company, Subsidiary)")
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_effective_date ON filings(Effective_Date)")
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_state_product ON filings(State, Product_Line)")
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_company ON filings(Company, Subsidiary)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_effective_date ON filings(Effective_Date)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_state_product ON filings(State, Product_Line)"
+                )
 
             logger.info(
                 f"Sync completed. Mode: {sync_mode}, "
@@ -222,13 +257,16 @@ class AirtableSync:
             if sync_id:
                 try:
                     with self.db.transaction() as conn:
-                        conn.execute("""
+                        conn.execute(
+                            """
                             UPDATE sync_history 
                             SET status = 'failed',
                                 completed_at = CURRENT_TIMESTAMP,
                                 error_message = ?
                             WHERE sync_id = ?
-                        """, [str(e), sync_id])
+                        """,
+                            [str(e), sync_id],
+                        )
                 except:
                     pass  # Don't fail if we can't update the sync history
 
@@ -244,20 +282,22 @@ class AirtableSync:
 
             # Parse the Last Modified field
             last_modified = None
-            airtable_date = record['fields'].get('Last Modified')
+            airtable_date = record["fields"].get("Last Modified")
 
             if airtable_date:
                 try:
                     # Try ISO format first (what Airtable actually sends)
-                    if 'T' in airtable_date:
+                    if "T" in airtable_date:
                         # ISO format: 2025-05-28T16:13:00.000Z
-                        last_modified = datetime.fromisoformat(airtable_date.replace('Z', '+00:00'))
+                        last_modified = datetime.fromisoformat(airtable_date.replace("Z", "+00:00"))
                     else:
                         # Fallback to the other format if needed: 5/14/2025 1:35pm
-                        last_modified = datetime.strptime(airtable_date, '%m/%d/%Y %I:%M%p')
+                        last_modified = datetime.strptime(airtable_date, "%m/%d/%Y %I:%M%p")
                 except ValueError as e:
-                    logger.warning(f"Could not parse date: {airtable_date} for record {record['id']}")
-        # Don't fail the whole record, just skip the timestamp
+                    logger.warning(
+                        f"Could not parse date: {airtable_date} for record {record['id']}"
+                    )
+            # Don't fail the whole record, just skip the timestamp
 
             product_line = fields.get("Product Line", "")
             rate_change_raw = fields.get("Overall Rate Change Number")
