@@ -188,6 +188,71 @@ python -m src.monthly_workflow send
 python src/webhook_handler.py
 ```
 
+## Monthly Workflow CLI Usage
+
+The `src.monthly_workflow` module wraps the report generation and
+email-delivery steps into a single command-line tool.
+
+### Prerequisites
+
+1. Configure the environment variables listed above in a `.env` file.
+2. Activate the virtual environment: `source venv/bin/activate`.
+3. Ensure your DuckDB database is synced with the latest filings.
+
+### Command Reference
+
+Run commands using:
+
+```bash
+python -m src.monthly_workflow <command> [--dry-run]
+```
+
+| Command    | Description                                                               |
+|-----------|---------------------------------------------------------------------------|
+| `generate`| Build HTML reports for all states with activity and log them to Airtable. |
+| `send`    | Email all `Approved` reports to subscribers via Postmark.                 |
+| `--dry-run`| Optional flag that prints actions without writing files or sending emails. |
+
+### Examples
+
+```bash
+# Preview which reports would be generated
+python -m src.monthly_workflow generate --dry-run
+```
+
+```
+🔍 DRY RUN MODE - No changes will be made
+
+=== Generating September 2024 Reports ===
+⏭️  Alabama: No activity this month
+... (other states)
+✓ Generated 2 reports
+```
+
+```bash
+# Send approved reports without emailing
+python -m src.monthly_workflow send --dry-run
+```
+
+```
+🔍 DRY RUN MODE - No changes will be made
+
+=== Sending September 2024 Approved Reports ===
+❌ No approved reports found
+```
+
+### Example Workflow
+
+1. On the **29th** run `python -m src.monthly_workflow generate` to create that month's reports.
+2. Review each report in Airtable and mark it as `Approved`.
+3. On the **1st** of the following month run `python -m src.monthly_workflow send` to deliver the newsletters.
+
+### Troubleshooting
+
+- **Missing environment variables** – the script will abort with an error. Check that all variables in `.env` are present.
+- **No approved reports found** – verify reports are marked `Approved` in Airtable before running `send`.
+- **Delivery issues** – review Postmark logs and webhook output for errors.
+
 ### Data Flow
 
 ```
