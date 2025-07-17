@@ -11,6 +11,9 @@ def db_path(tmp_path):
     # Initialize the database with required tables
     conn = duckdb.connect(str(db_file))
     
+    # Create the sequence for sync_history IDs
+    conn.execute("CREATE SEQUENCE sync_history_seq START 1")
+    
     # Create sync_history table with exact production schema
     conn.execute("""
         CREATE TABLE sync_history(
