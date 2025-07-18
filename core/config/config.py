@@ -9,4 +9,4 @@ class Config:
     AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
     AIRTABLE_TABLE_NAME = os.getenv("AIRTABLE_TABLE_NAME")
     # Allow the database path to be overridden via environment variable
-    DB_PATH = os.getenv("DATABASE_PATH", "serff_analytics/data/insurance_filings.db")
+    DB_PATH = os.getenv("DATABASE_PATH", "core/data/sources/insurance_filings.db")

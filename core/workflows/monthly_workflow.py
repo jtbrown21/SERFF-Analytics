@@ -24,9 +24,9 @@ import logging
 import argparse
 from dotenv import load_dotenv
 
-from src.generate_reports import generate_all_reports
-from src.send_reports import send_approved_reports
-from src.shared.utils import check_required_env_vars
+from core.reporting.generate_reports import generate_all_reports
+from core.notifications.send_reports import send_approved_reports
+from core.utils.shared.utils import check_required_env_vars
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)

@@ -13,11 +13,13 @@ import duckdb
 from datetime import datetime, timedelta
 import numpy as np
 
+from ..config.config import Config
+
 # Initialize Dash app
 app = dash.Dash(__name__)
 
-# Database connection - update with your DuckDB file path
-DB_PATH = "data/insurance_filings.db"
+# Database connection - use config for path
+DB_PATH = Config.DB_PATH
 
 # Top 10 carriers for focus
 TOP_CARRIERS = [

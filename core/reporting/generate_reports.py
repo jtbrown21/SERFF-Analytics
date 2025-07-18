@@ -8,15 +8,15 @@ from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
 
-from src.report_manager import ReportManager
-from src.shared.utils import ALL_STATES, get_current_month_year
-from serff_analytics.reports.state_newsletter import (
+from core.reporting.report_manager import ReportManager
+from core.utils.shared.utils import ALL_STATES, get_current_month_year
+from core.reporting.state_newsletter import (
     StateNewsletterReport,
     normalize_state_abbr,
 )
-from serff_analytics.db.utils import get_month_boundaries
-from serff_analytics.db import DatabaseManager
-from serff_analytics.config import Config
+from core.data.database.utils import get_month_boundaries
+from core.data.database import DatabaseManager
+from core.config.config import Config
 
 load_dotenv()
 logger = logging.getLogger(__name__)

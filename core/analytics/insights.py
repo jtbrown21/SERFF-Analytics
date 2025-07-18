@@ -3,12 +3,14 @@ import pandas as pd
 from datetime import datetime, timedelta
 import logging
 
+from ..config.config import Config
+
 logger = logging.getLogger(__name__)
 
 
 class InsuranceAnalytics:
-    def __init__(self, db_path="serff_analytics/data/insurance_filings.db"):
-        self.db_path = db_path
+    def __init__(self, db_path=None):
+        self.db_path = db_path or Config.DB_PATH
 
     def get_connection(self):
         return duckdb.connect(self.db_path)

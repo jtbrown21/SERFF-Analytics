@@ -7,7 +7,8 @@ from datetime import datetime
 from tabulate import tabulate
 import time
 
-from serff_analytics.ingest.airtable_sync import AirtableSync
+from core.data.sync.airtable_sync import AirtableSync
+from core.config.config import Config
 
 
 @click.group()
@@ -44,7 +45,7 @@ def sync(full):
 def status():
     """Show current sync status"""
     try:
-        conn = duckdb.connect('serff_analytics/data/insurance_filings.db', read_only=True)
+        conn = duckdb.connect(Config.DB_PATH, read_only=True)
 
         last_sync = conn.execute(
             """
@@ -84,7 +85,7 @@ def status():
 def history():
     """Show sync history"""
     try:
-        conn = duckdb.connect('serff_analytics/data/insurance_filings.db', read_only=True)
+        conn = duckdb.connect(Config.DB_PATH, read_only=True)
 
         results = conn.execute(
             """
@@ -128,7 +129,7 @@ def test():
     total = 3
 
     try:
-        conn = duckdb.connect('serff_analytics/data/insurance_filings.db', read_only=True)
+        conn = duckdb.connect(Config.DB_PATH, read_only=True)
 
         schema = conn.execute("PRAGMA table_info(filings)").fetchall()
         if any(col[1] == 'Airtable_Last_Modified' for col in schema):

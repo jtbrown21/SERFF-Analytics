@@ -2,15 +2,15 @@ from dotenv import load_dotenv
 import os
 from pathlib import Path
 from datetime import datetime
-from src.report_manager import ReportManager
-import logging
-from src.email_service import (
+from core.reporting.report_manager import ReportManager
+from core.notifications.email_service import (
     send_newsletter_embedded_with_subscriber_tracking,
     get_test_subscribers,
     get_subscribers_by_state,
 )
-from src.shared.utils import get_current_month_year
-from serff_analytics.reports.state_newsletter import normalize_state_abbr
+from core.utils.shared.utils import get_current_month_year
+from core.reporting.state_newsletter import normalize_state_abbr
+import logging
 
 load_dotenv()
 logger = logging.getLogger(__name__)

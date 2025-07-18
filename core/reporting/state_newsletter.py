@@ -17,8 +17,8 @@ import duckdb
 from typing import Optional, Tuple
 
 # get_month_boundaries lives in the db utilities module
-from serff_analytics.db.utils import get_month_boundaries
-from serff_analytics.config import Config
+from core.data.database.utils import get_month_boundaries
+from core.config.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -520,7 +520,7 @@ if __name__ == "__main__":
             f"monthly/19.0/{state_abbr}/{year}/{month_full}/{filename}"
         )
 
-        from src.report_manager import ReportManager
+        from core.reporting.report_manager import ReportManager
 
         manager = ReportManager()
         manager.log_report(

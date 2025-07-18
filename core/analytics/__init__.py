@@ -8,6 +8,10 @@ competitive intelligence, and market trends.
 from typing import Dict, List, Optional, Any
 from datetime import datetime, date
 
+# Import the analytics modules
+from .insights import InsuranceAnalytics
+from .competitive_dashboard import app as dashboard_app
+
 from ..models import RateFiling, ReportType
 from ..config import settings
 from ..utils import get_logger
