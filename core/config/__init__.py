@@ -18,13 +18,14 @@ load_dotenv()
 @dataclass
 class DatabaseConfig:
     """Database configuration settings."""
-    duckdb_path: str = "insurance_filings.db"
+    duckdb_path: str = "core/data/sources/insurance_filings.db"
     airtable_base_id: str = ""
     airtable_table_name: str = "Rate Filings"
     airtable_api_key: str = ""
     
     def __post_init__(self):
         """Load values from environment variables."""
+        self.duckdb_path = os.getenv("DATABASE_PATH", self.duckdb_path)
         self.airtable_base_id = os.getenv("AIRTABLE_BASE_ID", self.airtable_base_id)
         self.airtable_table_name = os.getenv("AIRTABLE_TABLE_NAME", self.airtable_table_name)
         self.airtable_api_key = os.getenv("AIRTABLE_API_KEY", self.airtable_api_key)
