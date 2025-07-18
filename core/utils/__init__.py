@@ -62,8 +62,9 @@ def setup_logging(
     logger = logging.getLogger(name)
     logger.setLevel(getattr(logging, level.upper(), logging.INFO))
     
-    # Clear existing handlers
-    logger.handlers.clear()
+    # Check if handlers already exist to prevent duplicates
+    if logger.handlers:
+        return logger
     
     # Create formatters
     file_formatter = logging.Formatter(
@@ -105,15 +106,14 @@ def get_logger(name: str, level: Optional[str] = None) -> logging.Logger:
     Returns:
         Logger instance
     """
-    # Use environment variable or default
-    log_level = level or os.getenv("LOG_LEVEL", "INFO")
+    # Just return the logger without setting up handlers
+    # Let the application handle logging setup
+    logger = logging.getLogger(name)
     
-    return setup_logging(
-        name=name,
-        level=log_level,
-        log_to_file=True,
-        log_to_console=True
-    )
+    if level:
+        logger.setLevel(getattr(logging, level.upper(), logging.INFO))
+    
+    return logger
 
 def log_function_call(func_name: str, args: tuple = (), kwargs: Optional[Dict[str, Any]] = None):
     """
@@ -194,8 +194,8 @@ def log_error_with_context(error: Exception, context: Optional[Dict[str, Any]] =
     
     logger.error(message, exc_info=True)
 
-# Create default logger instance
-logger = get_logger("core")
+# Create default logger instance (commented out to prevent automatic handler creation)
+# logger = get_logger("core")
 
 # Export public interface
 __all__ = [
@@ -205,5 +205,5 @@ __all__ = [
     "log_performance",
     "log_data_operation",
     "log_error_with_context",
-    "logger",
+    # "logger",  # Commented out since we're not auto-creating it
 ]

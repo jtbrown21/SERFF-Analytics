@@ -11,7 +11,8 @@ __author__ = "Insurance Analytics Team"
 # Core modules
 from .config import settings
 from .models import *
-from .utils import logging
+# NOTE: Removed 'from .utils import logging' to prevent duplicate logging setup
+# Import logging utilities directly when needed instead of through core.__init__
 
 # Main components
 from .data import DataManager
@@ -27,5 +28,5 @@ __all__ = [
     "ReportManager",
     "NotificationService",
     "WorkflowEngine",
-    "logging",
+    # Removed "logging" - import core.utils.logging directly when needed
 ]

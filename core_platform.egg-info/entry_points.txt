@@ -1,0 +1,3 @@
+[console_scripts]
+core-cli = core.cli.cli:cli
+core-workflow = core.workflows.monthly_workflow:main
